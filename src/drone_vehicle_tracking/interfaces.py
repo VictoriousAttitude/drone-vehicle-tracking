@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 import numpy as np
+import numpy.typing as npt
 
 from drone_vehicle_tracking.telemetry.models import Detection, GeoPoint, TelemetryFrame, Track
 
@@ -20,7 +21,7 @@ from drone_vehicle_tracking.telemetry.models import Detection, GeoPoint, Telemet
 class Detector(Protocol):
     """Detects vehicles in a single image frame."""
 
-    def detect(self, frame_index: int, image: np.ndarray) -> list[Detection]: ...
+    def detect(self, frame_index: int, image: npt.NDArray[np.uint8]) -> list[Detection]: ...
 
 
 @runtime_checkable

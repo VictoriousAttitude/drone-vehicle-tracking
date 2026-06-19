@@ -11,15 +11,16 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from drone_vehicle_tracking.telemetry.models import Detection
 
 
 def build_detections(
     frame_index: int,
-    xyxy: np.ndarray,
-    confidences: np.ndarray,
-    class_ids: np.ndarray,
+    xyxy: npt.NDArray[np.float64],
+    confidences: npt.NDArray[np.float64],
+    class_ids: npt.NDArray[np.int_],
     names: Mapping[int, str],
     allowed: Iterable[str] | None = None,
 ) -> list[Detection]:
@@ -55,13 +56,13 @@ class YoloVehicleDetector:
     """Ultralytics YOLO wrapped to emit ``Detection`` contracts for vehicle classes."""
 
     def __init__(self, model: str, conf: float, classes: Sequence[str]) -> None:
-        from ultralytics import YOLO  # type: ignore[attr-defined]
+        from ultralytics import YOLO
 
         self._model: Any = YOLO(model)
         self._conf = conf
         self._classes = list(classes)
 
-    def detect(self, frame_index: int, image: np.ndarray) -> list[Detection]:
+    def detect(self, frame_index: int, image: npt.NDArray[np.uint8]) -> list[Detection]:
         result = self._model.predict(image, conf=self._conf, verbose=False)[0]
         boxes = result.boxes
         return build_detections(

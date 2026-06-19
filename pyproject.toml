@@ -55,8 +55,16 @@ warn_unused_ignores = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["cv2.*", "ultralytics.*", "folium.*", "pyproj.*", "supervision.*"]
+module = ["cv2.*", "folium.*", "pyproj.*", "supervision.*"]
 ignore_missing_imports = true
+
+# ultralytics ships a py.typed marker but does not re-export YOLO, so its partial
+# stubs trip strict mypy only when the [cv] extra is installed. Skip-following it
+# makes the type view identical whether or not the heavy extra is present.
+[[tool.mypy.overrides]]
+module = ["ultralytics.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers"

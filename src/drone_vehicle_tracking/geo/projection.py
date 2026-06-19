@@ -32,6 +32,7 @@ import math
 from typing import cast
 
 import numpy as np
+import numpy.typing as npt
 
 from drone_vehicle_tracking.geo.camera import CameraModel
 from drone_vehicle_tracking.telemetry.models import GeoPoint, TelemetryFrame
@@ -41,17 +42,19 @@ from drone_vehicle_tracking.telemetry.models import GeoPoint, TelemetryFrame
 _R0 = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
 
 
-def _rot_x(theta_rad: float) -> np.ndarray:
+def _rot_x(theta_rad: float) -> npt.NDArray[np.float64]:
     c, s = math.cos(theta_rad), math.sin(theta_rad)
     return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
 
 
-def _rot_z(theta_rad: float) -> np.ndarray:
+def _rot_z(theta_rad: float) -> npt.NDArray[np.float64]:
     c, s = math.cos(theta_rad), math.sin(theta_rad)
     return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
 
 
-def rotation_camera_to_world(yaw_deg: float, pitch_deg: float, roll_deg: float) -> np.ndarray:
+def rotation_camera_to_world(
+    yaw_deg: float, pitch_deg: float, roll_deg: float
+) -> npt.NDArray[np.float64]:
     """Rotation matrix mapping a camera-frame direction to world ENU.
 
     Intrinsic sequence from the level-North reference ``_R0``: yaw about world
@@ -61,7 +64,7 @@ def rotation_camera_to_world(yaw_deg: float, pitch_deg: float, roll_deg: float) 
     """
     r_up = _rot_z(math.radians(-yaw_deg))
     rotation = r_up @ _R0 @ _rot_x(math.radians(pitch_deg)) @ _rot_z(math.radians(roll_deg))
-    return cast("np.ndarray", rotation)
+    return cast("npt.NDArray[np.float64]", rotation)
 
 
 def pixel_to_local_enu(
