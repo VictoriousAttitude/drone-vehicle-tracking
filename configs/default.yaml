@@ -1,0 +1,23 @@
+# Pipeline configuration. All tunables live here — no magic numbers in code.
+
+detection:
+  model: yolov8m.pt          # COCO-pretrained; vehicle classes only
+  conf_threshold: 0.30
+  iou_threshold: 0.50
+  classes: [car, truck, bus]
+
+tracking:
+  tracker: bytetrack
+  min_track_length: 10       # frames; drop spurious short tracks
+
+camera:
+  model: mavic_3t_wide       # see geo/camera.py registry
+
+projection:
+  ground_assumption: flat    # flat | dem
+  altitude_source: rel_alt   # rel_alt | abs_alt
+  crs_output: "EPSG:4326"    # WGS84 lon/lat
+
+io:
+  frame_stride: 1            # process every Nth frame
+  output_dir: outputs

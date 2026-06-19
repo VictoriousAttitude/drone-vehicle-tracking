@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "drone-vehicle-tracking"
+version = "0.1.0"
+description = "Detect, track and geo-reference vehicles from nadir drone video using DJI flight telemetry."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pyproj>=3.6",
+    "pandas>=2.2",
+    "folium>=0.16",
+    "pyyaml>=6.0",
+]
+
+# Heavy CV/DL deps are optional so the pure-Python core (telemetry, geo, viz)
+# stays light and testable in CI without pulling torch.
+[project.optional-dependencies]
+cv = [
+    "opencv-python>=4.9",
+    "ultralytics>=8.2",
+    "supervision>=0.22",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[project.scripts]
+dvt = "drone_vehicle_tracking.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/drone_vehicle_tracking"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["cv2.*", "ultralytics.*", "folium.*", "pyproj.*", "supervision.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+markers = [
+    "integration: requires real video/telemetry data (skipped in CI)",
+]
+
+[tool.coverage.run]
+source = ["drone_vehicle_tracking"]
+branch = true
