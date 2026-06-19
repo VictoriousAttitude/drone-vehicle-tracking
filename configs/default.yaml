@@ -1,10 +1,13 @@
 # Pipeline configuration. All tunables live here — no magic numbers in code.
 
 detection:
-  model: yolov8m.pt          # COCO-pretrained; vehicle classes only
-  conf_threshold: 0.30
+  # COCO-pretrained YOLO fails on nadir aerial vehicles (wrong viewpoint domain);
+  # use VisDrone-finetuned weights. See docs/approach.md and README for download.
+  model: models/yolov8s-visdrone.pt
+  conf_threshold: 0.25
   iou_threshold: 0.50
-  classes: [car, truck, bus]
+  imgsz: 1280                # small aerial objects need higher inference resolution
+  classes: [car, van, truck, bus]
 
 tracking:
   tracker: bytetrack

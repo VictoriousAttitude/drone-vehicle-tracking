@@ -20,7 +20,8 @@ video frames  ─┘
 ```
 
 1. **Telemetry** — parse DJI SRT into per-frame drone pose (lat, lon, altitude, gimbal).
-2. **Detection** — YOLO restricted to vehicle classes (`car`, `truck`, `bus`).
+2. **Detection** — YOLO restricted to vehicle classes. COCO-pretrained weights
+   fail on top-down imagery, so VisDrone-finetuned weights are used (see below).
 3. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories.
 4. **Geo-referencing** — per-frame nadir projection maps each pixel to WGS84
    using the drone position, altitude and gimbal yaw.
@@ -37,11 +38,28 @@ pip install -e ".[cv,dev]"   # core + CV/DL + dev tooling
 The pure-Python core (telemetry, geometry, visualization) installs without the
 heavy `cv` extra; `cv` adds OpenCV + Ultralytics for detection/tracking.
 
+## Detection weights
+
+COCO-pretrained YOLO does not recognise vehicles from a nadir (top-down) view —
+it is trained on ground-level imagery and returns spurious classes on aerial
+frames. The default config therefore expects VisDrone-finetuned weights:
+
+```bash
+mkdir -p models
+curl -L "https://huggingface.co/mshamrai/yolov8s-visdrone/resolve/main/best.pt?download=true" \
+  -o models/yolov8s-visdrone.pt
+```
+
+Any Ultralytics-compatible `.pt` can be swapped in via `detection.model` in the
+config. Weights are not committed (see `.gitignore`).
+
 ## Usage
 
 ```bash
 dvt --video data/flight.MP4 --srt data/flight.SRT --config configs/default.yaml
 ```
+
+Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths).
 
 ## Project layout
 

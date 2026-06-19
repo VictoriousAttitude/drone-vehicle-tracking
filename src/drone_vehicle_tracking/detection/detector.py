@@ -55,15 +55,16 @@ def build_detections(
 class YoloVehicleDetector:
     """Ultralytics YOLO wrapped to emit ``Detection`` contracts for vehicle classes."""
 
-    def __init__(self, model: str, conf: float, classes: Sequence[str]) -> None:
+    def __init__(self, model: str, conf: float, classes: Sequence[str], imgsz: int = 1280) -> None:
         from ultralytics import YOLO
 
         self._model: Any = YOLO(model)
         self._conf = conf
         self._classes = list(classes)
+        self._imgsz = imgsz
 
     def detect(self, frame_index: int, image: npt.NDArray[np.uint8]) -> list[Detection]:
-        result = self._model.predict(image, conf=self._conf, verbose=False)[0]
+        result = self._model.predict(image, conf=self._conf, imgsz=self._imgsz, verbose=False)[0]
         boxes = result.boxes
         return build_detections(
             frame_index,

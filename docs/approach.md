@@ -7,11 +7,20 @@ telemetry embedded in the DJI SRT file.
 
 ## Pipeline
 1. **Telemetry parse** — DJI SRT -> per-frame drone pose (lat, lon, alt, gimbal).
-2. **Detection** — YOLO, vehicle classes only.
+2. **Detection** — YOLO, vehicle classes only (see *Detection model* below).
 3. **Tracking** — ByteTrack -> stable IDs and pixel trajectories.
-4. **Geo-referencing** — per-frame nadir projection: pixel -> ground offset
-   (via GSD) -> rotate by gimbal yaw -> add to drone WGS84 position.
+4. **Geo-referencing** — per-frame projection: pixel -> ground offset (ray cast,
+   reduces to GSD * pixel_delta at nadir) -> rotate by gimbal yaw -> add to the
+   drone's WGS84 position. Implemented per point with that point's own frame pose.
 5. **Visualization** — folium/Leaflet map + optional annotated video.
+
+## Detection model
+COCO-pretrained YOLO is trained on ground-level imagery and does not generalise
+to a nadir (top-down) viewpoint: on aerial test frames it returned no vehicles,
+only spurious non-vehicle classes. Switching to VisDrone-finetuned weights and
+raising the inference resolution (`imgsz` 1280, since vehicles are small at
+survey altitude) restores reliable detection. Detection is decoupled behind the
+`Detector` protocol, so swapping weights is a one-line config change.
 
 ## Operating regime
 - Designed for near-nadir survey flights (gimbal pitch close to -90 deg), where a

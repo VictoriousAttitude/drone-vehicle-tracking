@@ -16,7 +16,8 @@ def main() -> None:
 
     from drone_vehicle_tracking.pipeline import run
 
-    run(args.video, args.srt, args.config)
+    tracks = run(args.video, args.srt, args.config)
+    print(f"Done: {len(tracks)} geo-referenced vehicle tracks.")
 
 
 if __name__ == "__main__":
