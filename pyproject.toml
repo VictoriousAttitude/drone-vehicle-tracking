@@ -23,7 +23,8 @@ dependencies = [
 cv = [
     "opencv-python>=4.9",
     "ultralytics>=8.2",
-    "supervision>=0.22",
+    "supervision>=0.26",
+    "trackers>=2.0",
 ]
 dev = [
     "pytest>=8.0",
@@ -58,11 +59,11 @@ files = ["src"]
 module = ["cv2.*", "folium.*", "pyproj.*", "supervision.*"]
 ignore_missing_imports = true
 
-# ultralytics ships a py.typed marker but does not re-export YOLO, so its partial
-# stubs trip strict mypy only when the [cv] extra is installed. Skip-following it
-# makes the type view identical whether or not the heavy extra is present.
+# ultralytics / trackers ship py.typed markers but partial stubs, so they trip
+# strict mypy only when the [cv] extra is installed. Skip-following them makes the
+# type view identical whether or not the heavy extra is present.
 [[tool.mypy.overrides]]
-module = ["ultralytics.*"]
+module = ["ultralytics.*", "trackers.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 

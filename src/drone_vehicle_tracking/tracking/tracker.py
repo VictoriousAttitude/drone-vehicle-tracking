@@ -1,8 +1,10 @@
-"""Multi-object tracking via supervision's ByteTrack.
+"""Multi-object tracking via the roboflow ``trackers`` ByteTrack implementation.
 
 ByteTrack consumes detections from any detector, keeping detection and tracking
 decoupled. The tracker emits pixel-space tracks (ground-contact point = bbox
-bottom-centre); geo-referencing is applied downstream.
+bottom-centre); geo-referencing is applied downstream. Detections are exchanged
+through supervision's ``Detections`` container, which ``trackers`` consumes and
+returns annotated with ``tracker_id``.
 """
 
 from __future__ import annotations
@@ -25,9 +27,10 @@ class ByteTrackVehicleTracker:
 
     def __init__(self, min_track_length: int) -> None:
         import supervision as sv
+        from trackers import ByteTrackTracker
 
         self._sv = sv
-        self._tracker = sv.ByteTrack()
+        self._tracker = ByteTrackTracker()
         self._min_track_length = min_track_length
         self._name_to_id: dict[str, int] = {}
         self._id_to_name: dict[int, str] = {}
@@ -51,11 +54,13 @@ class ByteTrackVehicleTracker:
             )
         else:
             det = sv.Detections.empty()
-        tracked = self._tracker.update_with_detections(det)
+        tracked = self._tracker.update(det)
         if tracked.tracker_id is None:
             return
         for i in range(len(tracked)):
             tid = int(tracked.tracker_id[i])
+            if tid < 0:  # unconfirmed detection, not yet promoted to a stable track
+                continue
             point = TrackPoint(
                 frame_index=frame_index, pixel_xy=bbox_bottom_center(tracked.xyxy[i])
             )

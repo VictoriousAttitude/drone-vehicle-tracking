@@ -17,7 +17,7 @@ def test_bbox_bottom_center() -> None:
 
 
 def test_single_moving_object_yields_one_stable_track() -> None:
-    pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
     tracker = ByteTrackVehicleTracker(min_track_length=5)
     for f in range(25):
         tracker.update(f, [_det(f, 100.0 + f * 4.0, 200.0)])
@@ -33,7 +33,7 @@ def test_single_moving_object_yields_one_stable_track() -> None:
 
 
 def test_short_track_is_filtered_out() -> None:
-    pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
     tracker = ByteTrackVehicleTracker(min_track_length=10)
     for f in range(3):
         tracker.update(f, [_det(f, 100.0 + f * 4.0, 200.0)])
@@ -41,7 +41,7 @@ def test_short_track_is_filtered_out() -> None:
 
 
 def test_empty_frames_do_not_crash() -> None:
-    pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
     tracker = ByteTrackVehicleTracker(min_track_length=1)
     tracker.update(0, [])
     tracker.update(1, [_det(1, 100.0, 200.0)])
@@ -49,5 +49,5 @@ def test_empty_frames_do_not_crash() -> None:
 
 
 def test_tracker_satisfies_protocol() -> None:
-    pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
     assert isinstance(ByteTrackVehicleTracker(min_track_length=1), Tracker)
