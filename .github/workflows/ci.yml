@@ -25,5 +25,20 @@ jobs:
         run: ruff format --check .
       - name: Type check
         run: mypy
-      - name: Unit tests
+      - name: Unit tests (pure core, no CV stack)
         run: pytest -m "not integration" --cov
+
+  coverage:
+    # Full stack (OpenCV + Ultralytics + trackers) so the detector, tracker and
+    # video-decode paths run too; this job enforces the coverage floor.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (core + cv + dev)
+        run: pip install -e ".[cv,dev]"
+      - name: Tests with coverage gate
+        run: pytest -m "not integration" --cov --cov-fail-under=99

@@ -20,5 +20,5 @@ def main() -> None:
     print(f"Done: {len(tracks)} geo-referenced vehicle tracks.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

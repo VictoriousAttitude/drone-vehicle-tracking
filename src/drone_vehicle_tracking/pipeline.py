@@ -9,7 +9,7 @@ unit-testable without the ``[cv]`` extra.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
 
@@ -19,7 +19,7 @@ import numpy.typing as npt
 from drone_vehicle_tracking.config import load_config
 from drone_vehicle_tracking.geo.camera import CAMERA_REGISTRY
 from drone_vehicle_tracking.geo.projection import NadirProjector
-from drone_vehicle_tracking.interfaces import Projector
+from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
 from drone_vehicle_tracking.telemetry.srt_parser import parse_srt
 
@@ -104,25 +104,44 @@ def iter_video_frames(
         capture.release()
 
 
-def run(video_path: str | Path, srt_path: str | Path, config_path: str | Path) -> list[Track]:
-    """Run detect -> track -> geo-reference for one flight and write GeoJSON.
+def run(
+    video_path: str | Path,
+    srt_path: str | Path,
+    config_path: str | Path,
+    *,
+    detector: Detector | None = None,
+    tracker: Tracker | None = None,
+    projector: Projector | None = None,
+    frames: Iterable[tuple[int, npt.NDArray[np.uint8]]] | None = None,
+) -> list[Track]:
+    """Run detect -> track -> geo-reference for one flight and write outputs.
 
-    Returns the geo-referenced tracks and writes ``tracks.geojson`` into the
-    configured output directory.
+    Returns the geo-referenced tracks and writes ``tracks.geojson`` (and, when
+    any point is geo-located, ``map.html``) into the configured output directory.
+
+    The ``detector``, ``tracker``, ``projector`` and ``frames`` arguments default
+    to the production implementations (lazily importing the heavy CV stack) but
+    can be injected, which keeps the orchestration testable without that stack.
     """
-    from drone_vehicle_tracking.detection.detector import YoloVehicleDetector
-    from drone_vehicle_tracking.tracking.tracker import ByteTrackVehicleTracker
-
     config = load_config(config_path)
     telemetry_by_index = {frame.frame_index: frame for frame in parse_srt(srt_path)}
-    camera = CAMERA_REGISTRY[config.camera_model]
-    projector = NadirProjector(camera, config.altitude_source)
-    detector = YoloVehicleDetector(
-        config.model, config.conf_threshold, config.classes, config.imgsz
-    )
-    tracker = ByteTrackVehicleTracker(config.min_track_length)
 
-    for frame_index, image in iter_video_frames(video_path, config.frame_stride):
+    if projector is None:
+        projector = NadirProjector(CAMERA_REGISTRY[config.camera_model], config.altitude_source)
+    if detector is None:
+        from drone_vehicle_tracking.detection.detector import YoloVehicleDetector
+
+        detector = YoloVehicleDetector(
+            config.model, config.conf_threshold, config.classes, config.imgsz
+        )
+    if tracker is None:
+        from drone_vehicle_tracking.tracking.tracker import ByteTrackVehicleTracker
+
+        tracker = ByteTrackVehicleTracker(config.min_track_length)
+    if frames is None:
+        frames = iter_video_frames(video_path, config.frame_stride)
+
+    for frame_index, image in frames:
         tracker.update(frame_index, detector.detect(frame_index, image))
 
     tracks = georeference_tracks(tracker.finalize(), telemetry_by_index, projector)

@@ -158,3 +158,17 @@ def test_projector_center_pixel_returns_drone_position() -> None:
     point = NadirProjector(CAM).pixel_to_geo((CX, CY), tele)
     assert point.latitude == pytest.approx(48.267013, abs=1e-7)
     assert point.longitude == pytest.approx(25.914562, abs=1e-7)
+
+
+def test_projector_rejects_unknown_altitude_source() -> None:
+    with pytest.raises(ValueError, match="altitude_source"):
+        NadirProjector(CAM, altitude_source="bogus")
+
+
+def test_projector_uses_abs_alt_when_configured() -> None:
+    tele = _tele()
+    far = NadirProjector(CAM, "abs_alt").pixel_to_geo((CX + 100, CY), tele)
+    near = NadirProjector(CAM, "rel_alt").pixel_to_geo((CX + 100, CY), tele)
+    # abs_alt (300) is higher than rel_alt (100) -> larger ground offset for the
+    # same pixel, so the projected longitude lands further east.
+    assert far.longitude > near.longitude

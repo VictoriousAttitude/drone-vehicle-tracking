@@ -51,3 +51,32 @@ def test_empty_frames_do_not_crash() -> None:
 def test_tracker_satisfies_protocol() -> None:
     pytest.importorskip("trackers")
     assert isinstance(ByteTrackVehicleTracker(min_track_length=1), Tracker)
+
+
+def test_update_ignores_result_without_tracker_ids() -> None:
+    sv = pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
+    tracker = ByteTrackVehicleTracker(min_track_length=1)
+    # Simulate the underlying tracker returning detections with no assigned ids.
+    tracker._tracker.update = lambda det: sv.Detections.empty()  # type: ignore[method-assign]
+    tracker.update(0, [_det(0, 100.0, 200.0)])
+    assert tracker.finalize() == []
+
+
+def test_update_handles_tracks_without_class_id() -> None:
+    import numpy as np
+
+    sv = pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
+    tracker = ByteTrackVehicleTracker(min_track_length=1)
+    # tracker_id present (one confirmed track) but class_id absent.
+    tracked = sv.Detections(
+        xyxy=np.array([[10.0, 20.0, 30.0, 50.0]]),
+        tracker_id=np.array([7]),
+    )
+    tracker._tracker.update = lambda det: tracked  # type: ignore[method-assign]
+    tracker.update(0, [_det(0, 100.0, 200.0)])
+    (track,) = tracker.finalize()
+    assert track.track_id == 7
+    assert track.class_name == "unknown"  # no class_id -> default
+    assert track.points[0].pixel_xy == (20.0, 50.0)
