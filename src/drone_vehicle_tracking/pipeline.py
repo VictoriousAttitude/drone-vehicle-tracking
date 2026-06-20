@@ -130,4 +130,9 @@ def run(video_path: str | Path, srt_path: str | Path, config_path: str | Path) -
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "tracks.geojson").write_text(json.dumps(tracks_to_geojson(tracks), indent=2))
+
+    if any(point.geo is not None for track in tracks for point in track.points):
+        from drone_vehicle_tracking.visualization.map_viz import render_map
+
+        render_map(tracks, output_dir / config.map_html, config.moving_min_displacement_m)
     return tracks

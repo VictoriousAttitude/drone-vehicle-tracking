@@ -56,14 +56,15 @@ warn_unused_ignores = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["folium.*", "pyproj.*", "supervision.*", "yaml.*"]
+module = ["pyproj.*", "supervision.*", "yaml.*"]
 ignore_missing_imports = true
 
-# cv2 / ultralytics / trackers ship py.typed markers but broad or partial stubs,
-# so they constrain or trip strict mypy only when the [cv] extra is installed.
-# Skip-following them makes the type view identical with or without the extra.
+# folium / cv2 / ultralytics / trackers ship no usable type information (untyped
+# source or broad/partial stubs), so following them trips strict mypy
+# (no-untyped-call) or differs with vs. without the [cv] extra. Skip-following
+# them makes the type view identical in every environment.
 [[tool.mypy.overrides]]
-module = ["cv2.*", "ultralytics.*", "trackers.*"]
+module = ["folium.*", "cv2.*", "ultralytics.*", "trackers.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 

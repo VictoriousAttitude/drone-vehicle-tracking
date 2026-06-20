@@ -39,5 +39,19 @@ survey altitude) restores reliable detection. Detection is decoupled behind the
 - Effective focal length / HFOV to be refined by empirical calibration against a
   known ground feature.
 
+## Visualization
+The map (`outputs/map.html`, folium/Leaflet) carries both an OpenStreetMap and an
+Esri satellite base layer (toggle via the layer control). Each vehicle is one
+polyline; tracks are classified by net displacement (`pyproj` geodesic):
+- **Moving** (displacement >= `moving_min_displacement_m`, default 3 m): solid
+  coloured path with green start / red end markers and a popup carrying track id,
+  class, net displacement and path length.
+- **Stationary** (parked cars whose track is only GNSS/pixel jitter): faint grey
+  dashed line, no markers.
+
+This satisfies both the "moving cars" framing and the "paths of all detected
+cars" deliverable without discarding any track.
+
 ## Results
-_TBD — map screenshots, demo video, accuracy notes._
+_TBD — map screenshot and accuracy notes (run locally; outputs are gitignored to
+keep source imagery and location out of the public repo)._

@@ -24,3 +24,7 @@ projection:
 io:
   frame_stride: 1            # process every Nth frame
   output_dir: outputs
+
+visualization:
+  map_html: map.html
+  moving_min_displacement_m: 3.0   # below this net displacement a track is treated as parked

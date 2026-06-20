@@ -24,6 +24,8 @@ class PipelineConfig:
     altitude_source: str
     frame_stride: int
     output_dir: str
+    map_html: str
+    moving_min_displacement_m: float
 
 
 def load_config(path: str | Path) -> PipelineConfig:
@@ -35,6 +37,7 @@ def load_config(path: str | Path) -> PipelineConfig:
     tracking = data["tracking"]
     projection = data["projection"]
     io = data["io"]
+    visualization = data["visualization"]
     return PipelineConfig(
         model=str(detection["model"]),
         conf_threshold=float(detection["conf_threshold"]),
@@ -45,4 +48,6 @@ def load_config(path: str | Path) -> PipelineConfig:
         altitude_source=str(projection["altitude_source"]),
         frame_stride=int(io["frame_stride"]),
         output_dir=str(io["output_dir"]),
+        map_html=str(visualization["map_html"]),
+        moving_min_displacement_m=float(visualization["moving_min_displacement_m"]),
     )

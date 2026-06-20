@@ -59,7 +59,11 @@ config. Weights are not committed (see `.gitignore`).
 dvt --video data/flight.MP4 --srt data/flight.SRT --config configs/default.yaml
 ```
 
-Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths).
+Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths) and
+`outputs/map.html`, an interactive folium/Leaflet map (OSM + satellite layers)
+with one polyline per vehicle. Moving cars are drawn as solid coloured paths with
+start/end markers and metric popups; near-stationary (parked) tracks are faint and
+dashed. Both outputs are gitignored.
 
 ## Project layout
 
