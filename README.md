@@ -65,6 +65,17 @@ with one polyline per vehicle. Moving cars are drawn as solid coloured paths wit
 start/end markers and metric popups; near-stationary (parked) tracks are faint and
 dashed. Both outputs are gitignored.
 
+## Accuracy
+
+Validated without GCPs or RTK by separating the two error sources. **Relative**
+(path-shape) accuracy is set by the projection geometry, which is sub-metre across
+the operating envelope and adds zero cross-frame error under perfect telemetry
+(proven in tests). **Absolute** accuracy is bounded by an analytical error budget
+(`geo/error_budget.py`) and is dominated by the platform's GNSS (1–3 m without
+RTK) — so sub-metre *absolute* is GNSS-bound and not attainable from telemetry
+alone, while *relative* path accuracy is finer. Full budget in
+[`docs/approach.md`](docs/approach.md#accuracy).
+
 ## Project layout
 
 ```

@@ -160,6 +160,36 @@ def test_projector_center_pixel_returns_drone_position() -> None:
     assert point.longitude == pytest.approx(25.914562, abs=1e-7)
 
 
+def test_same_ground_feature_reprojects_consistently_across_poses() -> None:
+    """With perfect telemetry, one fixed ground point imaged from two different
+    drone positions must project to the same WGS84 coordinate. This isolates the
+    projection geometry: its cross-frame error is zero, so any real-world scatter
+    is sensor (GNSS/attitude) noise, not the maths.
+
+    The drone is moved in the projector's own ENU/UTM frame (via ``enu_to_geo``)
+    rather than along a true-north geodesic, so the two legs share a grid axis and
+    meridian convergence (grid-north vs true-north) does not leak into the result.
+    """
+    from drone_vehicle_tracking.geo.metrics import reprojection_scatter_m
+
+    h = 100.0
+    gsd = CAM.gsd(h)
+    d = 20.0  # drone moves 20 m north (grid) between the two frames
+
+    # Frame A: drone over the feature -> feature is at the centre pixel.
+    tele_a = _tele(yaw=0.0, lat=48.0, lon=25.0)
+    point_a = NadirProjector(CAM).pixel_to_geo((CX, CY), tele_a)
+
+    # Frame B: drone d metres north -> the same feature is d/gsd pixels *south*
+    # (larger v) of centre.
+    drone_b = enu_to_geo(0.0, d, 48.0, 25.0)
+    tele_b = _tele(yaw=0.0, lat=drone_b.latitude, lon=drone_b.longitude)
+    point_b = NadirProjector(CAM).pixel_to_geo((CX, CY + d / gsd), tele_b)
+
+    scatter = reprojection_scatter_m([point_a, point_b])
+    assert scatter.max_m < 0.01  # sub-centimetre: geometry adds no cross-frame error
+
+
 def test_projector_rejects_unknown_altitude_source() -> None:
     with pytest.raises(ValueError, match="altitude_source"):
         NadirProjector(CAM, altitude_source="bogus")

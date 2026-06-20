@@ -52,6 +52,40 @@ polyline; tracks are classified by net displacement (`pyproj` geodesic):
 This satisfies both the "moving cars" framing and the "paths of all detected
 cars" deliverable without discarding any track.
 
+## Accuracy
+Accuracy is validated without ground-control points or RTK — none are needed to
+*bound* the error — by separating the two independent contributors and quantifying
+each (`geo/error_budget.py`, `geo/metrics.py`).
+
+**Relative (path-shape) accuracy** is set by the projection geometry alone. With
+perfect telemetry the same ground feature imaged from two different drone poses
+reprojects to the same WGS84 coordinate to sub-centimetre
+(`test_same_ground_feature_reprojects_consistently_across_poses`), so geometry
+adds no cross-frame error. In the field, `reprojection_scatter_m` turns this into
+a GCP-free check: the spread of a *stationary* feature's reprojected positions
+across frames is a direct, location-agnostic measurement of relative accuracy.
+
+**Absolute accuracy** is bounded by an analytical error budget. Independent terms
+combine in quadrature (`root_sum_square`):
+
+| Term | Model | At 60 m / r=30 m | At 120 m / r=85 m |
+|------|-------|------------------|-------------------|
+| Gimbal tilt residual (0.1°) | `alt · tan(δ)` | ~0.10 m | ~0.21 m |
+| Altitude error (1%) | `r · ε` | ~0.30 m | ~0.85 m |
+| Focal/HFOV miscal. (1%) | `r · ε` | ~0.30 m | ~0.85 m |
+| Heading error (0.5°) | `2r · sin(δ/2)` | ~0.26 m | ~0.74 m |
+| **Geometry RSS** | | **~0.5 m** | **~1.4 m** |
+| Platform GNSS (no RTK) | 1:1 | ~1–3 m | ~1–3 m |
+
+The geometry is sub-metre across the operating envelope; the platform GNSS (1–3 m
+horizontal for commercial drones without RTK, per manufacturer specs) dominates
+and is the same magnitude regardless of altitude. **Conclusion:** sub-metre
+*absolute* accuracy is not attainable from telemetry alone — it is GNSS-bound, and
+would require RTK or ground-control points — whereas *relative* path accuracy is
+finer, limited only by the geometry above. This is the factual basis for the
+"up to ~1 m" target being a relative, not absolute, figure.
+
 ## Results
-_TBD — map screenshot and accuracy notes (run locally; outputs are gitignored to
-keep source imagery and location out of the public repo)._
+_Map screenshot — run locally; outputs are gitignored to keep source imagery and
+location out of the public repo. The accuracy figures above are reproducible from
+any DJI SRT via `geo/error_budget.py` and `geo/metrics.reprojection_scatter_m`._

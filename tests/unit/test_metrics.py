@@ -1,6 +1,10 @@
+import pytest
+
 from drone_vehicle_tracking.geo.metrics import (
+    geo_centroid,
     net_displacement_m,
     path_length_m,
+    reprojection_scatter_m,
     track_geo_points,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track, TrackPoint
@@ -58,3 +62,35 @@ def test_path_length_at_least_net_displacement() -> None:
     track = _track_with_geo([(48.0, 25.0), (48.001, 25.001), (48.0, 25.002)])
     geo = track_geo_points(track)
     assert path_length_m(geo) >= net_displacement_m(geo)
+
+
+def test_geo_centroid_is_arithmetic_mean() -> None:
+    c = geo_centroid([GeoPoint(48.0, 25.0), GeoPoint(48.2, 25.4)])
+    assert c.latitude == pytest.approx(48.1)
+    assert c.longitude == pytest.approx(25.2)
+
+
+def test_reprojection_scatter_empty_is_zero() -> None:
+    stats = reprojection_scatter_m([])
+    assert stats.count == 0
+    assert stats.rms_m == 0.0
+    assert stats.max_m == 0.0
+
+
+def test_reprojection_scatter_identical_points_is_zero() -> None:
+    pts = [GeoPoint(48.0, 25.0)] * 5
+    stats = reprojection_scatter_m(pts)
+    assert stats.count == 5
+    assert stats.rms_m == pytest.approx(0.0, abs=1e-6)
+    assert stats.max_m == pytest.approx(0.0, abs=1e-6)
+
+
+def test_reprojection_scatter_known_spread() -> None:
+    # Two points symmetric about the centroid, ~111 m apart in latitude.
+    # Each lies ~55.5 m from the centroid -> RMS == max == ~55.5 m.
+    pts = [GeoPoint(48.0, 25.0), GeoPoint(48.001, 25.0)]
+    stats = reprojection_scatter_m(pts)
+    assert stats.count == 2
+    assert stats.rms_m <= stats.max_m
+    assert stats.rms_m == pytest.approx(stats.max_m, rel=1e-4)  # symmetric to ~um
+    assert abs(stats.max_m - 55.5) < 1.0

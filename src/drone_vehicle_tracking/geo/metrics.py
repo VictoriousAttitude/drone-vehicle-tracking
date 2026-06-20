@@ -9,6 +9,7 @@ carries small jitter, so a net-displacement threshold separates the two.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from pyproj import Geod
 
@@ -36,3 +37,44 @@ def net_displacement_m(points: Sequence[GeoPoint]) -> float:
         return 0.0
     first, last = points[0], points[-1]
     return float(_GEOD.inv(first.longitude, first.latitude, last.longitude, last.latitude)[2])
+
+
+@dataclass(frozen=True, slots=True)
+class ScatterStats:
+    """Spread of a set of geo points about their centroid, in metres."""
+
+    rms_m: float
+    max_m: float
+    count: int
+
+
+def geo_centroid(points: Sequence[GeoPoint]) -> GeoPoint:
+    """Arithmetic mean position of a *local* cluster (small enough to ignore
+    meridian convergence and antimeridian wrap)."""
+    n = len(points)
+    return GeoPoint(
+        latitude=sum(p.latitude for p in points) / n,
+        longitude=sum(p.longitude for p in points) / n,
+    )
+
+
+def reprojection_scatter_m(points: Sequence[GeoPoint]) -> ScatterStats:
+    """Spread of repeated projections of a (nominally fixed) ground feature.
+
+    A stationary feature seen across frames is projected independently each
+    frame; with perfect geometry/telemetry those projections coincide. The
+    geodesic distance of each projection from their centroid therefore measures
+    the pipeline's *relative* (repeatability) accuracy -- no ground-control point
+    required. Reported as RMS and maximum deviation. Note this is an upper bound
+    on the projection error alone, since it also absorbs detection pixel jitter.
+    """
+    n = len(points)
+    if n == 0:
+        return ScatterStats(rms_m=0.0, max_m=0.0, count=0)
+    centroid = geo_centroid(points)
+    deviations = [
+        float(_GEOD.inv(centroid.longitude, centroid.latitude, p.longitude, p.latitude)[2])
+        for p in points
+    ]
+    rms = (sum(d * d for d in deviations) / n) ** 0.5
+    return ScatterStats(rms_m=rms, max_m=max(deviations), count=n)
