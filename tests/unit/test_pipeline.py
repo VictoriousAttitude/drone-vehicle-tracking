@@ -97,6 +97,8 @@ def test_tracks_to_geojson_structure_and_axis_order() -> None:
     assert feature["properties"]["class_name"] == "truck"
     # No timestamps on these points, so speed is not computable.
     assert feature["properties"]["mean_speed_kmh"] is None
+    # No confidence on these points either.
+    assert feature["properties"]["mean_confidence"] is None
 
 
 def test_tracks_to_geojson_includes_mean_speed_when_timed() -> None:
@@ -115,6 +117,19 @@ def test_tracks_to_geojson_includes_mean_speed_when_timed() -> None:
     speed = fc["features"][0]["properties"]["mean_speed_kmh"]  # type: ignore[index]
     assert isinstance(speed, float)
     assert speed == pytest.approx(40.0, abs=1.0)  # ~111 m in 10 s -> ~40 km/h
+
+
+def test_tracks_to_geojson_includes_mean_confidence_when_present() -> None:
+    track = Track(
+        track_id=8,
+        class_name="car",
+        points=[
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.0, 25.0), confidence=0.8),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(48.1, 25.0), confidence=0.6),
+        ],
+    )
+    fc = tracks_to_geojson([track])
+    assert fc["features"][0]["properties"]["mean_confidence"] == pytest.approx(0.7)  # type: ignore[index]
 
 
 def test_tracks_to_geojson_omits_tracks_with_fewer_than_two_geo_points() -> None:
@@ -164,11 +179,20 @@ def test_fakes_satisfy_protocols() -> None:
     assert isinstance(_FakeTracker((1, 2)), Tracker)
 
 
-def _write_config(tmp_path: Path, output_dir: Path, smoothing_window: int | None = None) -> Path:
+def _write_config(
+    tmp_path: Path,
+    output_dir: Path,
+    smoothing_window: int | None = None,
+    min_track_confidence: float | None = None,
+) -> Path:
     cfg = tmp_path / "config.yaml"
-    processing = (
-        "" if smoothing_window is None else f"processing:\n  smoothing_window: {smoothing_window}\n"
-    )
+    processing = ""
+    if smoothing_window is not None or min_track_confidence is not None:
+        processing = "processing:\n"
+        if smoothing_window is not None:
+            processing += f"  smoothing_window: {smoothing_window}\n"
+        if min_track_confidence is not None:
+            processing += f"  min_track_confidence: {min_track_confidence}\n"
     cfg.write_text(
         "detection:\n"
         "  model: unused.pt\n"
@@ -258,6 +282,48 @@ def test_run_applies_geo_smoothing(tmp_path, make_srt) -> None:
     lats = [lat for _lon, lat in coords]
     assert lats[0] == 0.0 and lats[2] == 0.0  # endpoints anchored
     assert lats[1] == pytest.approx(2.0)  # spike (6) averaged with two zero neighbours
+
+
+class _TwoTrackTracker:
+    """Yields a confident and a weak track so the quality filter can drop one."""
+
+    def update(self, frame_index: int, detections: Sequence[Detection]) -> None:
+        pass
+
+    def finalize(self) -> list[Track]:
+        return [
+            Track(
+                track_id=1,
+                class_name="car",
+                points=[TrackPoint(fi, (5.0, 9.0), confidence=0.9) for fi in (1, 2)],
+            ),
+            Track(
+                track_id=2,
+                class_name="car",
+                points=[TrackPoint(fi, (5.0, 9.0), confidence=0.1) for fi in (1, 2)],
+            ),
+        ]
+
+
+def test_run_drops_low_confidence_tracks(tmp_path, make_srt) -> None:
+    srt = make_srt([(48.0, 25.0), (48.010, 25.0)])
+    out_dir = tmp_path / "out"
+    cfg = _write_config(tmp_path, out_dir, min_track_confidence=0.5)
+    frames = [(i, np.zeros((4, 4, 3), dtype=np.uint8)) for i in (1, 2)]
+
+    tracks = run(
+        "ignored.mp4",
+        srt,
+        cfg,
+        detector=_FakeDetector(),
+        tracker=_TwoTrackTracker(),
+        projector=FakeProjector(),
+        frames=frames,
+    )
+
+    assert [t.track_id for t in tracks] == [1]  # the 0.1-mean track was filtered out
+    geojson = json.loads((out_dir / "tracks.geojson").read_text())
+    assert [f["properties"]["track_id"] for f in geojson["features"]] == [1]
 
 
 def test_run_skips_map_when_no_geo(tmp_path, make_srt) -> None:

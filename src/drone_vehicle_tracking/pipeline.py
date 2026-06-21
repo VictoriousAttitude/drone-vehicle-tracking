@@ -24,6 +24,10 @@ from drone_vehicle_tracking.geo.smoothing import smooth_tracks
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
 from drone_vehicle_tracking.telemetry.srt_parser import parse_srt
+from drone_vehicle_tracking.tracking.quality import (
+    filter_tracks_by_confidence,
+    track_mean_confidence,
+)
 
 
 def _build_projector(config: PipelineConfig) -> Projector:
@@ -86,6 +90,7 @@ def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
         if len(coords) < 2:
             continue
         speed = track_speed(track)
+        confidence = track_mean_confidence(track)
         features.append(
             {
                 "type": "Feature",
@@ -97,6 +102,7 @@ def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
                     "mean_speed_kmh": (
                         round(speed.mean_speed_kmh, 1) if speed is not None else None
                     ),
+                    "mean_confidence": (round(confidence, 3) if confidence is not None else None),
                 },
             }
         )
@@ -163,7 +169,8 @@ def run(
     for frame_index, image in frames:
         tracker.update(frame_index, detector.detect(frame_index, image))
 
-    tracks = georeference_tracks(tracker.finalize(), telemetry_by_index, projector)
+    kept = filter_tracks_by_confidence(tracker.finalize(), config.min_track_confidence)
+    tracks = georeference_tracks(kept, telemetry_by_index, projector)
     tracks = smooth_tracks(tracks, config.smoothing_window)
 
     output_dir = Path(config.output_dir)

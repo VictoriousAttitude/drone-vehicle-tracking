@@ -27,6 +27,7 @@ class PipelineConfig:
     map_html: str
     moving_min_displacement_m: float
     smoothing_window: int
+    min_track_confidence: float
 
 
 def load_config(path: str | Path) -> PipelineConfig:
@@ -53,4 +54,5 @@ def load_config(path: str | Path) -> PipelineConfig:
         map_html=str(visualization["map_html"]),
         moving_min_displacement_m=float(visualization["moving_min_displacement_m"]),
         smoothing_window=int(processing.get("smoothing_window", 1)),
+        min_track_confidence=float(processing.get("min_track_confidence", 0.0)),
     )

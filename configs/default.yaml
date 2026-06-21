@@ -25,6 +25,9 @@ processing:
   # Centred moving-average window (in points) over each track's geo positions,
   # to suppress GNSS/pixel jitter. 1 disables smoothing; endpoints stay anchored.
   smoothing_window: 5
+  # Drop tracks whose mean detection confidence is below this (a quality gate
+  # beyond min_track_length). 0 disables it. Tracks with no confidence are kept.
+  min_track_confidence: 0.3
 
 io:
   frame_stride: 1            # process every Nth frame

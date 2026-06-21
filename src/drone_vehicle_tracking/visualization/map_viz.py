@@ -19,6 +19,7 @@ from drone_vehicle_tracking.geo.metrics import (
     track_speed,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track
+from drone_vehicle_tracking.tracking.quality import track_mean_confidence
 
 # Distinct, colour-blind-friendly hues cycled across moving tracks.
 _PALETTE = (
@@ -86,12 +87,15 @@ def render_map(
 
         speed = track_speed(track)
         speed_html = f"mean speed: {speed.mean_speed_kmh:.1f} km/h<br>" if speed is not None else ""
+        confidence = track_mean_confidence(track)
+        conf_html = f"mean confidence: {confidence:.2f}<br>" if confidence is not None else ""
         latlon = [(p.latitude, p.longitude) for p in points]
         popup = folium.Popup(
             f"<b>track {track.track_id}</b> ({track.class_name})<br>"
             f"net displacement: {displacement:.1f} m<br>"
             f"path length: {length:.1f} m<br>"
             f"{speed_html}"
+            f"{conf_html}"
             f"points: {len(points)}",
             max_width=250,
         )

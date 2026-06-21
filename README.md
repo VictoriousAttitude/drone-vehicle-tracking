@@ -22,7 +22,8 @@ video frames  ─┘
 1. **Telemetry** — parse DJI SRT into per-frame drone pose (lat, lon, altitude, gimbal).
 2. **Detection** — YOLO restricted to vehicle classes. COCO-pretrained weights
    fail on top-down imagery, so VisDrone-finetuned weights are used (see below).
-3. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories.
+3. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories;
+   weak tracks are dropped by length and mean detection confidence.
 4. **Geo-referencing** — per-frame nadir projection maps each pixel to WGS84
    using the drone position, altitude and gimbal yaw.
 5. **Smoothing** — centred moving average over each track's WGS84 coordinates
@@ -61,8 +62,8 @@ config. Weights are not committed (see `.gitignore`).
 dvt --video data/flight.MP4 --srt data/flight.SRT --config configs/default.yaml
 ```
 
-Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths, each with a
-`mean_speed_kmh` property) and `outputs/map.html`, an interactive folium/Leaflet
+Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths, each with
+`mean_speed_kmh` and `mean_confidence` properties) and `outputs/map.html`, an interactive folium/Leaflet
 map (OSM + satellite layers) with one polyline per vehicle. Moving cars are drawn
 as solid coloured paths with start/end markers and popups (displacement, path
 length, mean speed); near-stationary (parked) tracks are faint and dashed. Both

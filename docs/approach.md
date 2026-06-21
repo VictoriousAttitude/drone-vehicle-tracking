@@ -8,7 +8,8 @@ telemetry embedded in the DJI SRT file.
 ## Pipeline
 1. **Telemetry parse** — DJI SRT -> per-frame drone pose (lat, lon, alt, gimbal).
 2. **Detection** — YOLO, vehicle classes only (see *Detection model* below).
-3. **Tracking** — ByteTrack -> stable IDs and pixel trajectories.
+3. **Tracking** — ByteTrack -> stable IDs and pixel trajectories; weak tracks are
+   then dropped by length and mean detection confidence (see *Track quality*).
 4. **Geo-referencing** — per-frame projection: pixel -> ground offset (ray cast,
    reduces to GSD * pixel_delta at nadir) -> rotate by gimbal yaw -> add to the
    drone's WGS84 position. Implemented per point with that point's own frame pose.
@@ -40,6 +41,22 @@ survey altitude) restores reliable detection. Detection is decoupled behind the
   sub-metre absolute is not achievable, while relative path accuracy is finer.
 - Effective focal length / HFOV to be refined by empirical calibration against a
   known ground feature.
+
+## Track quality
+`min_track_length` already drops tracks too *short* to trust, but a track can
+clear that gate while being built mostly from borderline detections just above
+the per-frame `conf_threshold`. The detector confidence is carried end-to-end
+onto each track point (verified to survive ByteTrack), so an aggregate gate is
+available: tracks whose **mean** confidence falls below `min_track_confidence`
+are dropped, and the mean is surfaced on the GeoJSON (`mean_confidence`) and the
+map popup so weak tracks are visible rather than silently kept. Tracks that carry
+no confidence (e.g. injected for testing) cannot be assessed and are kept, so the
+filter degrades to a no-op rather than discarding data it cannot judge.
+
+Heavier track-quality work — interpolating across detection gaps and re-ID across
+full occlusions — is deliberately left out: both add real complexity (and, for
+re-ID, an appearance model) for marginal gain on near-nadir survey footage where
+vehicles are rarely occluded. They are the natural next step if needed.
 
 ## Smoothing
 Geo-referenced tracks carry two independent noise sources — the drone's GNSS

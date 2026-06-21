@@ -81,3 +81,21 @@ def test_update_handles_tracks_without_class_id() -> None:
     assert track.class_name == "unknown"  # no class_id -> default
     assert track.points[0].pixel_xy == (20.0, 50.0)
     assert track.points[0].bbox_xyxy == (10.0, 20.0, 30.0, 50.0)  # genuine box kept
+    assert track.points[0].confidence is None  # no confidence on the output -> None
+
+
+def test_update_records_detection_confidence() -> None:
+    import numpy as np
+
+    sv = pytest.importorskip("supervision")
+    pytest.importorskip("trackers")
+    tracker = ByteTrackVehicleTracker(min_track_length=1)
+    tracked = sv.Detections(
+        xyxy=np.array([[10.0, 20.0, 30.0, 50.0]]),
+        confidence=np.array([0.77]),
+        tracker_id=np.array([4]),
+    )
+    tracker._tracker.update = lambda det: tracked  # type: ignore[method-assign]
+    tracker.update(0, [_det(0, 100.0, 200.0)])
+    (track,) = tracker.finalize()
+    assert track.points[0].confidence == pytest.approx(0.77)

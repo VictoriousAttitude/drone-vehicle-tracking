@@ -10,6 +10,7 @@ def _track(
     track_id: int,
     coords: list[tuple[float, float]],
     times: list[datetime] | None = None,
+    confidences: list[float] | None = None,
 ) -> Track:
     points = [
         TrackPoint(
@@ -17,6 +18,7 @@ def _track(
             pixel_xy=(0.0, 0.0),
             geo=GeoPoint(lat, lon),
             timestamp=None if times is None else times[i],
+            confidence=None if confidences is None else confidences[i],
         )
         for i, (lat, lon) in enumerate(coords)
     ]
@@ -29,8 +31,9 @@ def test_render_map_writes_html(tmp_path) -> None:
         1,
         [(48.0, 25.0), (48.001, 25.0), (48.002, 25.0)],
         times=[t0, t0 + timedelta(seconds=5), t0 + timedelta(seconds=10)],
+        confidences=[0.8, 0.7, 0.9],
     )
-    stationary = _track(2, [(48.01, 25.01), (48.01, 25.01)])  # no timestamps -> no speed
+    stationary = _track(2, [(48.01, 25.01), (48.01, 25.01)])  # no timestamps/confidence
     out = tmp_path / "map.html"
     render_map([moving, stationary], out)
     html = out.read_text()
@@ -41,6 +44,8 @@ def test_render_map_writes_html(tmp_path) -> None:
     assert "#808080" in html
     # The timed moving track shows a speed; the untimed stationary one does not.
     assert "km/h" in html
+    # The moving track carries confidence; the stationary one does not.
+    assert "mean confidence" in html
 
 
 def test_render_map_skips_tracks_without_geo(tmp_path) -> None:

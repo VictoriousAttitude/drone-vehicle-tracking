@@ -49,9 +49,10 @@ class Detection:
 class TrackPoint:
     """One position of a tracked vehicle.
 
-    The tracker produces ``pixel_xy`` (ground-contact point) and ``bbox_xyxy``
-    (the detection box, kept for annotated-video overlay); the geo-referencing
-    stage then attaches ``geo`` and ``timestamp`` from that frame's telemetry.
+    The tracker produces ``pixel_xy`` (ground-contact point), ``bbox_xyxy`` (the
+    detection box, kept for annotated-video overlay) and ``confidence`` (the
+    detector score, kept for track-quality filtering); the geo-referencing stage
+    then attaches ``geo`` and ``timestamp`` from that frame's telemetry.
     """
 
     frame_index: int
@@ -59,6 +60,7 @@ class TrackPoint:
     geo: GeoPoint | None = None
     timestamp: datetime | None = None
     bbox_xyxy: tuple[float, float, float, float] | None = None
+    confidence: float | None = None
 
 
 @dataclass
