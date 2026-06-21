@@ -77,6 +77,21 @@ def track_speed(track: Track) -> TrackSpeed | None:
     return TrackSpeed(duration_s=duration, distance_m=distance, mean_speed_mps=distance / duration)
 
 
+def track_position_error_m(track: Track) -> float | None:
+    """Worst-case (maximum) self-reported accuracy across a track's points.
+
+    Each point's ``position_error_m`` is the geometry-aware ground accuracy
+    computed at georeferencing time; the conservative track-level figure is the
+    maximum, so a track is never reported as more accurate than its loosest fix.
+    Returns ``None`` when no point carries an error (e.g. before georeferencing).
+    """
+    errors: list[float] = []
+    for point in track.points:
+        if point.position_error_m is not None:
+            errors.append(point.position_error_m)
+    return max(errors) if errors else None
+
+
 @dataclass(frozen=True, slots=True)
 class ScatterStats:
     """Spread of a set of geo points about their centroid, in metres."""

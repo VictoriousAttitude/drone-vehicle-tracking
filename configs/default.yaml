@@ -41,6 +41,16 @@ export:
   # Cursor-on-Target (CoT) output for TAK clients/servers, written with `dvt --cot`.
   cot_type: a-u-G            # MIL-STD-2525 CoT type: atom / unknown affiliation / Ground
   cot_stale_seconds: 60      # how long each emitted CoT event stays valid
-  # Self-reported horizontal accuracy (CoT `ce`), also surfaced in the GeoJSON and
-  # map. GNSS-bound without RTK — see the error budget in docs/approach.md.
+  # GNSS floor for the self-reported horizontal accuracy. GNSS-bound without RTK;
+  # the geometry terms below are combined with it per point — see docs/approach.md.
   position_error_m: 3.0
+
+accuracy:
+  # Sensor-uncertainty coefficients for the per-point self-reported accuracy
+  # (surfaced as CoT `ce`, GeoJSON `position_error_m` and the map popup). They are
+  # combined in quadrature with the GNSS floor above, scaled by each pixel's radial
+  # ground offset and altitude. See the error budget in docs/approach.md.
+  tilt_error_deg: 0.1            # residual gimbal pitch/roll after stabilisation
+  altitude_relative_error: 0.01  # 1% altitude uncertainty
+  focal_relative_error: 0.01     # 1% focal-length / HFOV miscalibration
+  yaw_error_deg: 0.5             # heading (yaw) uncertainty

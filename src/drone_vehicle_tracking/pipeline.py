@@ -18,7 +18,8 @@ import numpy.typing as npt
 
 from drone_vehicle_tracking.config import PipelineConfig, load_config
 from drone_vehicle_tracking.geo.camera import CAMERA_REGISTRY
-from drone_vehicle_tracking.geo.metrics import track_speed
+from drone_vehicle_tracking.geo.error_budget import AccuracyModel
+from drone_vehicle_tracking.geo.metrics import track_position_error_m, track_speed
 from drone_vehicle_tracking.geo.projection import NadirProjector
 from drone_vehicle_tracking.geo.smoothing import smooth_tracks
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
@@ -49,16 +50,31 @@ def _build_tracker(config: PipelineConfig) -> Tracker:
     return ByteTrackVehicleTracker(config.min_track_length)
 
 
+def _build_accuracy_model(config: PipelineConfig) -> AccuracyModel:
+    """Construct the per-point accuracy model from config (GNSS floor = position_error_m)."""
+    return AccuracyModel(
+        camera=CAMERA_REGISTRY[config.camera_model],
+        altitude_source=config.altitude_source,
+        tilt_error_deg=config.tilt_error_deg,
+        altitude_relative_error=config.altitude_relative_error,
+        focal_relative_error=config.focal_relative_error,
+        yaw_error_deg=config.yaw_error_deg,
+        gnss_error_m=config.position_error_m,
+    )
+
+
 def georeference_tracks(
     tracks: list[Track],
     telemetry_by_index: Mapping[int, TelemetryFrame],
     projector: Projector,
+    accuracy: AccuracyModel | None = None,
 ) -> list[Track]:
     """Attach a WGS84 ``geo`` coordinate to every track point with telemetry.
 
     Each point is projected using the telemetry of its own frame, so per-frame
     drone motion and gimbal yaw are respected. Points whose frame has no matching
-    telemetry are left with ``geo=None`` rather than dropped.
+    telemetry are left with ``geo=None`` rather than dropped. When ``accuracy`` is
+    given, each projected point also gets a geometry-aware ``position_error_m``.
     """
     out: list[Track] = []
     for track in tracks:
@@ -69,7 +85,10 @@ def georeference_tracks(
                 points.append(point)
                 continue
             geo = projector.pixel_to_geo(point.pixel_xy, telemetry)
-            points.append(replace(point, geo=geo, timestamp=telemetry.timestamp))
+            error = accuracy.error_for(point.pixel_xy, telemetry) if accuracy is not None else None
+            points.append(
+                replace(point, geo=geo, timestamp=telemetry.timestamp, position_error_m=error)
+            )
         out.append(Track(track_id=track.track_id, class_name=track.class_name, points=points))
     return out
 
@@ -80,9 +99,10 @@ def tracks_to_geojson(
     """Serialise geo-referenced tracks to a GeoJSON ``FeatureCollection``.
 
     Each track becomes a ``LineString`` of ``[lon, lat]`` vertices (GeoJSON axis
-    order). Tracks with fewer than two geo-located points are omitted.
-    ``position_error_m`` is recorded on every feature as the self-reported
-    horizontal accuracy (metres); ``None`` leaves it unset.
+    order). Tracks with fewer than two geo-located points are omitted. Each
+    feature's ``position_error_m`` is the track's worst-case geometry-aware
+    accuracy when its points carry one, else the ``position_error_m`` fallback;
+    ``None`` leaves it unset.
     """
     features: list[dict[str, object]] = []
     for track in tracks:
@@ -95,6 +115,8 @@ def tracks_to_geojson(
             continue
         speed = track_speed(track)
         confidence = track_mean_confidence(track)
+        track_error = track_position_error_m(track)
+        error = track_error if track_error is not None else position_error_m
         features.append(
             {
                 "type": "Feature",
@@ -107,7 +129,7 @@ def tracks_to_geojson(
                         round(speed.mean_speed_kmh, 1) if speed is not None else None
                     ),
                     "mean_confidence": (round(confidence, 3) if confidence is not None else None),
-                    "position_error_m": position_error_m,
+                    "position_error_m": round(error, 1) if error is not None else None,
                 },
             }
         )
@@ -177,7 +199,7 @@ def run(
         tracker.update(frame_index, detector.detect(frame_index, image))
 
     kept = filter_tracks_by_confidence(tracker.finalize(), config.min_track_confidence)
-    tracks = georeference_tracks(kept, telemetry_by_index, projector)
+    tracks = georeference_tracks(kept, telemetry_by_index, projector, _build_accuracy_model(config))
     tracks = smooth_tracks(tracks, config.smoothing_window)
 
     output_dir = Path(config.output_dir)

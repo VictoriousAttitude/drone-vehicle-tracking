@@ -78,8 +78,10 @@ dvt --video data/flight.MP4 --srt data/flight.SRT --overlay outputs/annotated.mp
 
 Add `--cot outputs/tracks.cot` to also export the tracks as **Cursor-on-Target**
 (CoT) XML for TAK (ATAK/WinTAK): one `<event>` per vehicle at its last known
-position, with course/speed, callsign and the self-reported horizontal accuracy
-in the standard `ce` field. See [`docs/approach.md`](docs/approach.md#export-cot--tak).
+position, with course/speed, callsign and a **per-point geometry-aware**
+self-reported horizontal accuracy in the standard `ce` field (computed from the
+error budget at each point's altitude and pixel offset, reported per track as the
+worst case). See [`docs/approach.md`](docs/approach.md#export-cot--tak).
 
 ```bash
 dvt --video data/flight.MP4 --srt data/flight.SRT --cot outputs/tracks.cot

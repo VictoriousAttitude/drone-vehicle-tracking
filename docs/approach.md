@@ -108,11 +108,18 @@ Ground), since a detector cannot establish friend-or-foe.
 
 **Self-reported accuracy** rides in the standard CoT `ce` (circular error, metres)
 field and is also written to the GeoJSON `position_error_m` property and the map
-popup, so every consumer sees the position's stated uncertainty. The figure
-(`export.position_error_m`, default 3 m) is the GNSS-bound absolute accuracy from
-the error budget below — honest by construction, since the geometry is sub-metre
-but the platform GNSS is not. `hae` and `le` are emitted as the CoT "unknown"
-sentinel because ground elevation is not modelled under the flat-ground projection.
+popup, so every consumer sees the position's stated uncertainty. Rather than a
+single configured constant, this is the **per-point geometry-aware** figure: the
+error-budget terms below (tilt, altitude/focal scale, heading) are evaluated at
+each point's own altitude and radial ground offset from nadir — derived from the
+pixel geometry (`radius_px · GSD`) — and combined in quadrature with the GNSS
+floor (`export.position_error_m`, default 3 m). So `ce` correctly grows toward the
+frame edge and with altitude, and is reported per track as the conservative
+**worst-case (maximum)** over its points. When a point has no telemetry the figure
+degrades to the flat GNSS floor. It is honest by construction — the geometry is
+sub-metre but the platform GNSS is not. `hae` and `le` are emitted as the CoT
+"unknown" sentinel because ground elevation is not modelled under the flat-ground
+projection.
 
 The MISB analogue for moving-target tracks is **ST 0903 (VMTI)**, which is binary
 KLV multiplexed into an ST 0601 video stream — a heavier, video-coupled artefact
@@ -151,6 +158,14 @@ and is the same magnitude regardless of altitude. **Conclusion:** sub-metre
 would require RTK or ground-control points — whereas *relative* path accuracy is
 finer, limited only by the geometry above. This is the factual basis for the
 "up to ~1 m" target being a relative, not absolute, figure.
+
+This budget is not only an analytical table: `geo/error_budget.AccuracyModel`
+evaluates the same terms **per point at runtime** (using that frame's altitude and
+the pixel's radial offset from nadir) and the result is surfaced as the
+self-reported accuracy on every track (CoT `ce`, GeoJSON, map) — see *Export*
+above. The coefficients (gimbal-tilt residual, altitude/focal scale, heading and
+the GNSS floor) live in the config's `accuracy` and `export` sections, so the
+claim is reproducible and tunable rather than hard-coded.
 
 ## Performance
 Throughput is measured per stage rather than as a single opaque number, because

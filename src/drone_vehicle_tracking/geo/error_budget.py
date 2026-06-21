@@ -17,12 +17,21 @@ dominant terms are:
   the radial ground distance and zero at nadir.
 
 Independent error sources combine in quadrature (root-sum-square).
+
+:class:`AccuracyModel` binds these terms to a camera and a set of error
+coefficients so the budget can be evaluated *per projected pixel* at runtime --
+turning the static table below into the self-reported accuracy surfaced on each
+track (CoT ``ce``, GeoJSON, map).
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable
+from dataclasses import dataclass
+
+from drone_vehicle_tracking.geo.camera import CameraModel
+from drone_vehicle_tracking.telemetry.models import TelemetryFrame
 
 
 def tilt_error_m(altitude_m: float, tilt_error_deg: float) -> float:
@@ -47,3 +56,68 @@ def heading_error_m(ground_offset_m: float, yaw_error_deg: float) -> float:
 def root_sum_square(values: Iterable[float]) -> float:
     """Quadrature sum of independent error terms."""
     return math.sqrt(sum(v * v for v in values))
+
+
+def point_error_m(
+    altitude_m: float,
+    ground_offset_m: float,
+    *,
+    tilt_error_deg: float,
+    altitude_relative_error: float,
+    focal_relative_error: float,
+    yaw_error_deg: float,
+    gnss_error_m: float,
+) -> float:
+    """Geometry-aware ground accuracy (metres) at a single projected pixel.
+
+    Combines the budget terms in quadrature for this point's own altitude and
+    radial ground offset ``r`` from nadir, then RSS'd with the GNSS floor. The
+    scale and heading terms vanish at nadir (``ground_offset_m == 0``), so the
+    result there is the floor (plus any residual tilt); it grows toward the image
+    edge and with altitude. The result is therefore always at least the floor.
+    """
+    return root_sum_square(
+        [
+            tilt_error_m(altitude_m, tilt_error_deg),
+            scale_error_m(ground_offset_m, altitude_relative_error),
+            scale_error_m(ground_offset_m, focal_relative_error),
+            heading_error_m(ground_offset_m, yaw_error_deg),
+            gnss_error_m,
+        ]
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class AccuracyModel:
+    """Per-point ground-accuracy estimator bound to a camera and error coefficients.
+
+    The radial ground offset is derived from the pixel geometry
+    (``radius_px * GSD``, with ``GSD = altitude / focal_px``), not from the
+    projected coordinate, so the estimate depends only on the camera, the frame's
+    altitude and the pixel -- never on the projection's geodetic conversion.
+    """
+
+    camera: CameraModel
+    altitude_source: str
+    tilt_error_deg: float
+    altitude_relative_error: float
+    focal_relative_error: float
+    yaw_error_deg: float
+    gnss_error_m: float
+
+    def error_for(self, pixel_xy: tuple[float, float], telemetry: TelemetryFrame) -> float:
+        """Self-reported horizontal accuracy (metres) for one pixel in this frame."""
+        altitude = float(getattr(telemetry, self.altitude_source))
+        fx, fy, cx, cy = self.camera.intrinsics()
+        offset_east = (pixel_xy[0] - cx) * altitude / fx
+        offset_north = (pixel_xy[1] - cy) * altitude / fy
+        ground_offset = math.hypot(offset_east, offset_north)
+        return point_error_m(
+            altitude,
+            ground_offset,
+            tilt_error_deg=self.tilt_error_deg,
+            altitude_relative_error=self.altitude_relative_error,
+            focal_relative_error=self.focal_relative_error,
+            yaw_error_deg=self.yaw_error_deg,
+            gnss_error_m=self.gnss_error_m,
+        )

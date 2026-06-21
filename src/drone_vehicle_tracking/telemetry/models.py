@@ -52,7 +52,9 @@ class TrackPoint:
     The tracker produces ``pixel_xy`` (ground-contact point), ``bbox_xyxy`` (the
     detection box, kept for annotated-video overlay) and ``confidence`` (the
     detector score, kept for track-quality filtering); the geo-referencing stage
-    then attaches ``geo`` and ``timestamp`` from that frame's telemetry.
+    then attaches ``geo``, ``timestamp`` and ``position_error_m`` (the geometry-
+    aware self-reported horizontal accuracy at this point) from that frame's
+    telemetry and pose.
     """
 
     frame_index: int
@@ -61,6 +63,7 @@ class TrackPoint:
     timestamp: datetime | None = None
     bbox_xyxy: tuple[float, float, float, float] | None = None
     confidence: float | None = None
+    position_error_m: float | None = None
 
 
 @dataclass

@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 
 from drone_vehicle_tracking import pipeline
+from drone_vehicle_tracking.geo.camera import MAVIC_3T_WIDE
+from drone_vehicle_tracking.geo.error_budget import AccuracyModel
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.pipeline import georeference_tracks, run, tracks_to_geojson
 from drone_vehicle_tracking.telemetry.models import (
@@ -107,6 +109,38 @@ def test_georeference_uses_each_points_own_frame() -> None:
     assert out.points[1].geo == GeoPoint(latitude=49.0, longitude=26.0)
     # The frame's telemetry timestamp is attached alongside the geo coordinate.
     assert out.points[0].timestamp == datetime(2024, 1, 1)
+    # No accuracy model supplied -> no per-point error is computed.
+    assert out.points[0].position_error_m is None
+
+
+def _accuracy_model() -> AccuracyModel:
+    return AccuracyModel(
+        camera=MAVIC_3T_WIDE,
+        altitude_source="rel_alt",
+        tilt_error_deg=0.1,
+        altitude_relative_error=0.01,
+        focal_relative_error=0.01,
+        yaw_error_deg=0.5,
+        gnss_error_m=3.0,
+    )
+
+
+def test_georeference_attaches_geometry_aware_error_when_accuracy_given() -> None:
+    telemetry = {1: _telemetry(1, lat=48.0, lon=25.0)}
+    _fx, _fy, cx, cy = MAVIC_3T_WIDE.intrinsics()
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(frame_index=1, pixel_xy=(cx, cy)),  # nadir -> floor-dominated
+            TrackPoint(frame_index=1, pixel_xy=(0.0, 0.0)),  # corner -> larger
+        ],
+    )
+    (out,) = georeference_tracks([track], telemetry, FakeProjector(), _accuracy_model())
+    center_error = out.points[0].position_error_m
+    corner_error = out.points[1].position_error_m
+    assert center_error is not None and corner_error is not None
+    assert corner_error > center_error >= 3.0  # at least the GNSS floor, grows off-nadir
 
 
 def test_georeference_leaves_geo_none_when_telemetry_missing() -> None:
@@ -155,6 +189,20 @@ def test_tracks_to_geojson_records_position_error_when_given() -> None:
     )
     fc = tracks_to_geojson([track], position_error_m=2.5)
     assert fc["features"][0]["properties"]["position_error_m"] == 2.5  # type: ignore[index]
+
+
+def test_tracks_to_geojson_prefers_per_point_error_over_fallback() -> None:
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.0, 25.0), position_error_m=4.2),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(48.1, 25.0), position_error_m=3.1),
+        ],
+    )
+    fc = tracks_to_geojson([track], position_error_m=3.0)
+    # The track's worst-case (max) per-point error wins over the 3.0 fallback.
+    assert fc["features"][0]["properties"]["position_error_m"] == 4.2  # type: ignore[index]
 
 
 def test_tracks_to_geojson_includes_mean_speed_when_timed() -> None:
@@ -293,8 +341,9 @@ def test_run_end_to_end_with_injected_components(tmp_path, make_srt) -> None:
     assert len(tracks) == 1
     geojson = json.loads((out_dir / "tracks.geojson").read_text())
     assert len(geojson["features"]) == 1
-    # Self-reported accuracy defaults to 3.0 m (no export section in the test config).
-    assert geojson["features"][0]["properties"]["position_error_m"] == 3.0
+    # Self-reported accuracy is geometry-aware (computed per point), and is always
+    # at least the 3.0 m GNSS floor (default config, no accuracy/export sections).
+    assert geojson["features"][0]["properties"]["position_error_m"] >= 3.0
     assert (out_dir / "map.html").exists()
 
 
@@ -322,7 +371,8 @@ def test_run_writes_cot_when_path_given(tmp_path, make_srt) -> None:
     (event,) = root.findall("event")
     assert event.get("version") == "2.0"
     assert event.get("uid") == "dvt-vehicle-1"
-    assert event.find("point").get("ce") == "3.0"  # default self-reported accuracy
+    # ce is the track's geometry-aware accuracy, at least the 3.0 m GNSS floor.
+    assert float(event.find("point").get("ce")) >= 3.0
 
 
 class _CenterBoxDetector:

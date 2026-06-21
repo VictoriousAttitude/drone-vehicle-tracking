@@ -21,3 +21,7 @@ def test_load_default_config() -> None:
     assert config.cot_type == "a-u-G"
     assert config.cot_stale_seconds > 0
     assert config.position_error_m > 0.0
+    assert config.tilt_error_deg > 0.0
+    assert 0.0 < config.altitude_relative_error < 1.0
+    assert 0.0 < config.focal_relative_error < 1.0
+    assert config.yaw_error_deg > 0.0

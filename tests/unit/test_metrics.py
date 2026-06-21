@@ -8,6 +8,7 @@ from drone_vehicle_tracking.geo.metrics import (
     path_length_m,
     reprojection_scatter_m,
     track_geo_points,
+    track_position_error_m,
     track_speed,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track, TrackPoint
@@ -157,6 +158,23 @@ def test_track_speed_none_when_duration_not_positive() -> None:
         ],
     )
     assert track_speed(track) is None
+
+
+def test_track_position_error_is_worst_case_max() -> None:
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), position_error_m=2.0),
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.0, 25.0), position_error_m=3.5),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(48.0, 25.0)),  # no error -> ignored
+        ],
+    )
+    assert track_position_error_m(track) == 3.5
+
+
+def test_track_position_error_none_when_no_point_carries_one() -> None:
+    assert track_position_error_m(_track_with_geo([(48.0, 25.0), (48.0, 25.0)])) is None
 
 
 def test_reprojection_scatter_known_spread() -> None:

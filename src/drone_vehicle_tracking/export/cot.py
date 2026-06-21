@@ -23,7 +23,11 @@ from xml.etree.ElementTree import Element, SubElement, indent, tostring
 
 from pyproj import Geod
 
-from drone_vehicle_tracking.geo.metrics import track_geo_points, track_speed
+from drone_vehicle_tracking.geo.metrics import (
+    track_geo_points,
+    track_position_error_m,
+    track_speed,
+)
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track
 from drone_vehicle_tracking.tracking.quality import track_mean_confidence
 
@@ -65,8 +69,9 @@ def track_to_cot_event(
 
     Returns ``None`` for a track with no geo-located point. The event time is the
     last geo-located point's telemetry timestamp, falling back to ``generated_at``
-    when the track carries no timestamps. ``position_error_m`` is written as the
-    CoT ``ce`` (self-reported circular error, metres).
+    when the track carries no timestamps. The CoT ``ce`` (self-reported circular
+    error, metres) is the track's worst-case geometry-aware accuracy when its
+    points carry one, else the ``position_error_m`` fallback.
     """
     points = track_geo_points(track)
     if not points:
@@ -92,7 +97,9 @@ def track_to_cot_event(
     point_el.set("lat", f"{last.latitude:.8f}")
     point_el.set("lon", f"{last.longitude:.8f}")
     point_el.set("hae", _UNKNOWN)  # height above ellipsoid unmodelled (flat-ground)
-    point_el.set("ce", f"{position_error_m:.1f}")  # self-reported horizontal accuracy
+    track_error = track_position_error_m(track)
+    ce = track_error if track_error is not None else position_error_m
+    point_el.set("ce", f"{ce:.1f}")  # self-reported horizontal accuracy
     point_el.set("le", _UNKNOWN)  # vertical error unmodelled
 
     detail = SubElement(event, "detail")

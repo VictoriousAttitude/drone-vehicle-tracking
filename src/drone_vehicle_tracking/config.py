@@ -31,6 +31,10 @@ class PipelineConfig:
     cot_type: str
     cot_stale_seconds: int
     position_error_m: float
+    tilt_error_deg: float
+    altitude_relative_error: float
+    focal_relative_error: float
+    yaw_error_deg: float
 
 
 def load_config(path: str | Path) -> PipelineConfig:
@@ -45,6 +49,7 @@ def load_config(path: str | Path) -> PipelineConfig:
     visualization = data["visualization"]
     processing = data.get("processing", {})
     export = data.get("export", {})
+    accuracy = data.get("accuracy", {})
     return PipelineConfig(
         model=str(detection["model"]),
         conf_threshold=float(detection["conf_threshold"]),
@@ -62,4 +67,8 @@ def load_config(path: str | Path) -> PipelineConfig:
         cot_type=str(export.get("cot_type", "a-u-G")),
         cot_stale_seconds=int(export.get("cot_stale_seconds", 60)),
         position_error_m=float(export.get("position_error_m", 3.0)),
+        tilt_error_deg=float(accuracy.get("tilt_error_deg", 0.1)),
+        altitude_relative_error=float(accuracy.get("altitude_relative_error", 0.01)),
+        focal_relative_error=float(accuracy.get("focal_relative_error", 0.01)),
+        yaw_error_deg=float(accuracy.get("yaw_error_deg", 0.5)),
     )

@@ -92,6 +92,24 @@ def test_event_for_timed_moving_track_carries_track_and_accuracy() -> None:
     assert "confidence=0.70" in remarks  # mean of 0.8 and 0.6
 
 
+def test_event_ce_uses_per_point_error_over_fallback() -> None:
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), t0, position_error_m=3.4),
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.001, 25.0), t0, position_error_m=4.1),
+        ],
+    )
+    event = track_to_cot_event(
+        track, cot_type="a-u-G", stale_seconds=60, position_error_m=3.0, generated_at=t0
+    )
+    assert event is not None
+    # Worst-case per-point error (4.1) is reported, not the 3.0 fallback.
+    assert event.find("point").get("ce") == "4.1"
+
+
 def test_event_without_timestamps_uses_generated_at_and_omits_track() -> None:
     track = _track()  # geo but no timestamps -> speed not computable
     generated = datetime(2024, 1, 1, 9, 30, 0)

@@ -16,6 +16,7 @@ from drone_vehicle_tracking.geo.metrics import (
     net_displacement_m,
     path_length_m,
     track_geo_points,
+    track_position_error_m,
     track_speed,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track
@@ -61,8 +62,9 @@ def render_map(
     """Write an interactive HTML map with one polyline per geo-located track.
 
     Raises ``ValueError`` if no track carries at least two geo-located points,
-    since there is then nothing to plot. ``position_error_m``, when given, is
-    shown in each popup as the self-reported horizontal accuracy.
+    since there is then nothing to plot. Each popup shows the track's worst-case
+    geometry-aware accuracy when its points carry one, else the
+    ``position_error_m`` fallback when given.
     """
     import folium
 
@@ -91,10 +93,10 @@ def render_map(
         speed_html = f"mean speed: {speed.mean_speed_kmh:.1f} km/h<br>" if speed is not None else ""
         confidence = track_mean_confidence(track)
         conf_html = f"mean confidence: {confidence:.2f}<br>" if confidence is not None else ""
+        track_error = track_position_error_m(track)
+        shown_error = track_error if track_error is not None else position_error_m
         accuracy_html = (
-            f"position accuracy: &plusmn;{position_error_m:.1f} m<br>"
-            if position_error_m is not None
-            else ""
+            f"position accuracy: &plusmn;{shown_error:.1f} m<br>" if shown_error is not None else ""
         )
         latlon = [(p.latitude, p.longitude) for p in points]
         popup = folium.Popup(
