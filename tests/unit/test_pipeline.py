@@ -164,8 +164,11 @@ def test_fakes_satisfy_protocols() -> None:
     assert isinstance(_FakeTracker((1, 2)), Tracker)
 
 
-def _write_config(tmp_path: Path, output_dir: Path) -> Path:
+def _write_config(tmp_path: Path, output_dir: Path, smoothing_window: int | None = None) -> Path:
     cfg = tmp_path / "config.yaml"
+    processing = (
+        "" if smoothing_window is None else f"processing:\n  smoothing_window: {smoothing_window}\n"
+    )
     cfg.write_text(
         "detection:\n"
         "  model: unused.pt\n"
@@ -178,6 +181,7 @@ def _write_config(tmp_path: Path, output_dir: Path) -> Path:
         "  model: mavic_3t_wide\n"
         "projection:\n"
         "  altitude_source: rel_alt\n"
+        f"{processing}"
         "io:\n"
         "  frame_stride: 1\n"
         f"  output_dir: {output_dir}\n"
@@ -210,6 +214,50 @@ def test_run_end_to_end_with_injected_components(tmp_path, make_srt) -> None:
     geojson = json.loads((out_dir / "tracks.geojson").read_text())
     assert len(geojson["features"]) == 1
     assert (out_dir / "map.html").exists()
+
+
+class _SpikeTracker:
+    """Yields a 3-point track whose middle pixel is offset, so the FakeProjector
+    produces a one-point latitude spike for smoothing to flatten."""
+
+    def update(self, frame_index: int, detections: Sequence[Detection]) -> None:
+        pass
+
+    def finalize(self) -> list[Track]:
+        return [
+            Track(
+                track_id=1,
+                class_name="car",
+                points=[
+                    TrackPoint(frame_index=1, pixel_xy=(0.0, 0.0)),
+                    TrackPoint(frame_index=2, pixel_xy=(0.0, 6.0)),  # the spike
+                    TrackPoint(frame_index=3, pixel_xy=(0.0, 0.0)),
+                ],
+            )
+        ]
+
+
+def test_run_applies_geo_smoothing(tmp_path, make_srt) -> None:
+    srt = make_srt([(0.0, 25.0), (0.0, 25.0), (0.0, 25.0)])  # flat telemetry
+    out_dir = tmp_path / "out"
+    cfg = _write_config(tmp_path, out_dir, smoothing_window=3)
+    frames = [(i, np.zeros((4, 4, 3), dtype=np.uint8)) for i in (1, 2, 3)]
+
+    run(
+        "ignored.mp4",
+        srt,
+        cfg,
+        detector=_FakeDetector(),
+        tracker=_SpikeTracker(),
+        projector=FakeProjector(),
+        frames=frames,
+    )
+
+    geojson = json.loads((out_dir / "tracks.geojson").read_text())
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    lats = [lat for _lon, lat in coords]
+    assert lats[0] == 0.0 and lats[2] == 0.0  # endpoints anchored
+    assert lats[1] == pytest.approx(2.0)  # spike (6) averaged with two zero neighbours
 
 
 def test_run_skips_map_when_no_geo(tmp_path, make_srt) -> None:

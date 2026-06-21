@@ -15,7 +15,7 @@ _TODO: map screenshot + short demo clip._
 
 ```
 SRT telemetry ─┐
-               ├─> detect (YOLO) ─> track (ByteTrack) ─> geo-reference ─> map / video
+               ├─> detect (YOLO) ─> track (ByteTrack) ─> geo-reference ─> smooth ─> map / video
 video frames  ─┘
 ```
 
@@ -25,7 +25,9 @@ video frames  ─┘
 3. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories.
 4. **Geo-referencing** — per-frame nadir projection maps each pixel to WGS84
    using the drone position, altitude and gimbal yaw.
-5. **Visualization** — interactive folium/Leaflet map + optional annotated video.
+5. **Smoothing** — centred moving average over each track's WGS84 coordinates
+   suppresses GNSS/pixel jitter (`processing.smoothing_window`, endpoints kept).
+6. **Visualization** — interactive folium/Leaflet map + optional annotated video.
 
 See [`docs/approach.md`](docs/approach.md) for the method, assumptions and accuracy notes.
 

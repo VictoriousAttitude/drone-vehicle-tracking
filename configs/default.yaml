@@ -21,6 +21,11 @@ projection:
   altitude_source: rel_alt   # rel_alt | abs_alt
   crs_output: "EPSG:4326"    # WGS84 lon/lat
 
+processing:
+  # Centred moving-average window (in points) over each track's geo positions,
+  # to suppress GNSS/pixel jitter. 1 disables smoothing; endpoints stay anchored.
+  smoothing_window: 5
+
 io:
   frame_stride: 1            # process every Nth frame
   output_dir: outputs

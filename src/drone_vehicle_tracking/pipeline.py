@@ -20,6 +20,7 @@ from drone_vehicle_tracking.config import PipelineConfig, load_config
 from drone_vehicle_tracking.geo.camera import CAMERA_REGISTRY
 from drone_vehicle_tracking.geo.metrics import track_speed
 from drone_vehicle_tracking.geo.projection import NadirProjector
+from drone_vehicle_tracking.geo.smoothing import smooth_tracks
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
 from drone_vehicle_tracking.telemetry.srt_parser import parse_srt
@@ -163,6 +164,7 @@ def run(
         tracker.update(frame_index, detector.detect(frame_index, image))
 
     tracks = georeference_tracks(tracker.finalize(), telemetry_by_index, projector)
+    tracks = smooth_tracks(tracks, config.smoothing_window)
 
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -12,7 +12,9 @@ telemetry embedded in the DJI SRT file.
 4. **Geo-referencing** — per-frame projection: pixel -> ground offset (ray cast,
    reduces to GSD * pixel_delta at nadir) -> rotate by gimbal yaw -> add to the
    drone's WGS84 position. Implemented per point with that point's own frame pose.
-5. **Visualization** — folium/Leaflet map + optional annotated video.
+5. **Smoothing** — centred moving average over each track's WGS84 coordinates to
+   suppress GNSS/pixel jitter (see *Smoothing* below).
+6. **Visualization** — folium/Leaflet map + optional annotated video.
 
 ## Detection model
 COCO-pretrained YOLO is trained on ground-level imagery and does not generalise
@@ -39,6 +41,22 @@ survey altitude) restores reliable detection. Detection is decoupled behind the
 - Effective focal length / HFOV to be refined by empirical calibration against a
   known ground feature.
 
+## Smoothing
+Geo-referenced tracks carry two independent noise sources — the drone's GNSS
+(metres without RTK) and per-frame detection-box jitter — which make plotted
+paths zig-zag and inflate path length and speed. A centred moving average
+(`geo/smoothing.py`, window set by `processing.smoothing_window`) low-passes each
+track's WGS84 coordinates before the GeoJSON and map are written. Smoothing is
+done in **geo space**, never in pixel space: a parked car's pixels still travel
+as the drone flies and yaws, so only the projected ground positions isolate the
+true jitter. Latitude and longitude are filtered independently; the window is
+symmetric and shrinks to a single point at each end, so the first and last fixes
+stay anchored — **net displacement (and thus the moving/stationary split) is
+preserved**, while interior jitter, path length and the jitter-inflated speed are
+reduced. A constant-velocity Kalman/RTS smoother is the natural upgrade if a
+motion model is wanted; the moving average needs no tuning, no extra dependency
+and invents no positions.
+
 ## Visualization
 The map (`outputs/map.html`, folium/Leaflet) carries both an OpenStreetMap and an
 Esri satellite base layer (toggle via the layer control). Each vehicle is one
@@ -50,9 +68,11 @@ polyline; tracks are classified by net displacement (`pyproj` geodesic):
   dashed line, no markers.
 
 Mean speed is along-path geodesic distance over the elapsed SRT time
-(`metrics.track_speed`) and is also written to the GeoJSON `mean_speed_kmh`
-property. At low displacement it absorbs GNSS/pixel jitter, so it is meaningful
-for moving traffic and only indicative for near-stationary tracks.
+(`metrics.track_speed`, computed on the smoothed track) and is also written to
+the GeoJSON `mean_speed_kmh` property. Smoothing removes most of the jitter that
+would otherwise inflate it, but at low displacement the residual still dominates,
+so it is meaningful for moving traffic and only indicative for near-stationary
+tracks.
 
 This satisfies both the "moving cars" framing and the "paths of all detected
 cars" deliverable without discarding any track.

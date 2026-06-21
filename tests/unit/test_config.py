@@ -16,3 +16,4 @@ def test_load_default_config() -> None:
     assert config.min_track_length >= 1
     assert config.map_html.endswith(".html")
     assert config.moving_min_displacement_m > 0.0
+    assert config.smoothing_window >= 1
