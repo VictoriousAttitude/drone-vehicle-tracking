@@ -56,10 +56,3 @@ def test_render_map_skips_tracks_without_geo(tmp_path) -> None:
 def test_render_map_empty_raises(tmp_path) -> None:
     with pytest.raises(ValueError):
         render_map([], tmp_path / "map.html")
-
-
-def test_video_overlay_stub_is_documented_unimplemented(tmp_path) -> None:
-    from drone_vehicle_tracking.visualization.video_overlay import render_overlay
-
-    with pytest.raises(NotImplementedError):
-        render_overlay("in.mp4", [], tmp_path / "out.mp4")

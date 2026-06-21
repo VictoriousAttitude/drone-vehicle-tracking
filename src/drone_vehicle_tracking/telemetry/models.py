@@ -49,14 +49,16 @@ class Detection:
 class TrackPoint:
     """One position of a tracked vehicle.
 
-    ``geo`` and ``timestamp`` are populated by the geo-referencing stage (from the
-    frame's telemetry); the tracker produces pixel-space points with both ``None``.
+    The tracker produces ``pixel_xy`` (ground-contact point) and ``bbox_xyxy``
+    (the detection box, kept for annotated-video overlay); the geo-referencing
+    stage then attaches ``geo`` and ``timestamp`` from that frame's telemetry.
     """
 
     frame_index: int
     pixel_xy: tuple[float, float]
     geo: GeoPoint | None = None
     timestamp: datetime | None = None
+    bbox_xyxy: tuple[float, float, float, float] | None = None
 
 
 @dataclass

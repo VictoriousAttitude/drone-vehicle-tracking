@@ -66,6 +66,13 @@ as solid coloured paths with start/end markers and popups (displacement, path
 length, mean speed); near-stationary (parked) tracks are faint and dashed. Both
 outputs are gitignored.
 
+Add `--overlay outputs/annotated.mp4` to also burn the detection boxes and track
+IDs onto a copy of the source video for visual QA:
+
+```bash
+dvt --video data/flight.MP4 --srt data/flight.SRT --overlay outputs/annotated.mp4
+```
+
 ## Accuracy
 
 Validated without GCPs or RTK by separating the two error sources. **Relative**

@@ -80,3 +80,4 @@ def test_update_handles_tracks_without_class_id() -> None:
     assert track.track_id == 7
     assert track.class_name == "unknown"  # no class_id -> default
     assert track.points[0].pixel_xy == (20.0, 50.0)
+    assert track.points[0].bbox_xyxy == (10.0, 20.0, 30.0, 50.0)  # genuine box kept

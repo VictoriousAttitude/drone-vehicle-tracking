@@ -17,6 +17,10 @@ def main() -> None:
         action="store_true",
         help="Run the pipeline and print a per-stage timing report instead of a track count.",
     )
+    parser.add_argument(
+        "--overlay",
+        help="Also write an annotated video (boxes + track IDs) to this path.",
+    )
     args = parser.parse_args()
 
     if args.benchmark:
@@ -29,6 +33,12 @@ def main() -> None:
 
     tracks = run(args.video, args.srt, args.config)
     print(f"Done: {len(tracks)} geo-referenced vehicle tracks.")
+
+    if args.overlay:
+        from drone_vehicle_tracking.visualization.video_overlay import render_overlay
+
+        render_overlay(args.video, tracks, args.overlay)
+        print(f"Wrote annotated video: {args.overlay}")
 
 
 if __name__ == "__main__":  # pragma: no cover

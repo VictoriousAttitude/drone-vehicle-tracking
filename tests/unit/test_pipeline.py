@@ -268,3 +268,26 @@ def test_cli_main_benchmark_prints_report(monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "throughput" in out
     assert "3.00 fps" in out
+
+
+def test_cli_main_overlay_renders_annotated_video(monkeypatch, capsys) -> None:
+    import drone_vehicle_tracking.cli as cli
+    import drone_vehicle_tracking.visualization.video_overlay as video_overlay
+
+    tracks = [Track(1, "car", [])]
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(pipeline, "run", lambda video, srt, config: tracks)
+
+    def fake_render(video: str, trks: list[Track], output: str) -> None:
+        captured["args"] = (video, trks, output)
+
+    monkeypatch.setattr(video_overlay, "render_overlay", fake_render)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["dvt", "--video", "v.mp4", "--srt", "v.srt", "--overlay", "out.mp4"],
+    )
+    cli.main()
+
+    assert captured["args"] == ("v.mp4", tracks, "out.mp4")
+    assert "Wrote annotated video: out.mp4" in capsys.readouterr().out

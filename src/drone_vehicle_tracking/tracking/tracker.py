@@ -61,8 +61,11 @@ class ByteTrackVehicleTracker:
             tid = int(tracked.tracker_id[i])
             if tid < 0:  # unconfirmed detection, not yet promoted to a stable track
                 continue
+            box = tracked.xyxy[i]
             point = TrackPoint(
-                frame_index=frame_index, pixel_xy=bbox_bottom_center(tracked.xyxy[i])
+                frame_index=frame_index,
+                pixel_xy=bbox_bottom_center(box),
+                bbox_xyxy=(float(box[0]), float(box[1]), float(box[2]), float(box[3])),
             )
             self._points.setdefault(tid, []).append(point)
             if tracked.class_id is not None:
