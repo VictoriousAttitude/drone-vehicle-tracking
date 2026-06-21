@@ -189,7 +189,9 @@ association gate. Absolute fps is hardware- and clip-dependent, so it is left to
 the local run rather than quoted here.
 
 ## Results
-_Map screenshot — run locally; outputs are gitignored to keep source imagery and
-location out of the public repo. The accuracy figures above are reproducible from
-any DJI SRT via `geo/error_budget.py` and `geo/metrics.reprojection_scatter_m`;
-the performance breakdown via `dvt --benchmark`._
+A reproducible **synthetic** demo map (no real flight data) is produced by
+`examples/make_demo.py` — see *Demo* in the README. Real-flight outputs are
+gitignored to keep source imagery and location out of the public repo. The
+accuracy figures above are reproducible from any DJI SRT via `geo/error_budget.py`
+and `geo/metrics.reprojection_scatter_m`; the performance breakdown via
+`dvt --benchmark`.

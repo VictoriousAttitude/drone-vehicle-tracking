@@ -4,12 +4,27 @@ Detect, track and **geo-reference** moving vehicles from nadir drone video, then
 plot their real-world paths (WGS84) on an interactive map. Built around the
 per-frame flight telemetry embedded in DJI `.SRT` files.
 
-> Status: work in progress. Telemetry parsing and the geometry core are in
-> place; detection/tracking/projection are being implemented.
+> Status: end-to-end pipeline implemented and tested (telemetry -> detect ->
+> track -> geo-reference -> smooth -> map / GeoJSON / CoT). Accuracy is
+> **relative sub-metre / absolute GNSS-bound**; camera intrinsics are nominal,
+> not GCP-calibrated. See [Accuracy](#accuracy).
 
 ## Demo
 
-_TODO: map screenshot + short demo clip._
+![Synthetic demo map: three vehicle tracks with green start / red end markers](docs/images/demo.png)
+
+The map is rendered from **synthetic tracks** (no real flight data), so the demo
+is fully reproducible without the gitignored video/telemetry or detector weights:
+
+```bash
+python examples/make_demo.py   # writes examples/demo_map.html — open it in a browser
+```
+
+It draws moving vehicles (solid coloured paths with start/end markers and
+speed/confidence/accuracy popups) and a parked one (faint grey dashed), over the
+OpenStreetMap and Esri satellite base layers:
+
+![The same tracks on the Esri satellite base layer](docs/images/demo_satellite.png)
 
 ## How it works
 

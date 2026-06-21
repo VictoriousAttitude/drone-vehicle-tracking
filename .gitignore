@@ -1,6 +1,8 @@
 # Proprietary inputs — NEVER publish the company's data
 data/
 outputs/
+# Generated demo output (the generator script is committed; its HTML is not)
+examples/*.html
 *.MP4
 *.mp4
 *.SRT
