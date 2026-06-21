@@ -18,6 +18,7 @@ import numpy.typing as npt
 
 from drone_vehicle_tracking.config import PipelineConfig, load_config
 from drone_vehicle_tracking.geo.camera import CAMERA_REGISTRY
+from drone_vehicle_tracking.geo.metrics import track_speed
 from drone_vehicle_tracking.geo.projection import NadirProjector
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
@@ -63,7 +64,7 @@ def georeference_tracks(
                 points.append(point)
                 continue
             geo = projector.pixel_to_geo(point.pixel_xy, telemetry)
-            points.append(replace(point, geo=geo))
+            points.append(replace(point, geo=geo, timestamp=telemetry.timestamp))
         out.append(Track(track_id=track.track_id, class_name=track.class_name, points=points))
     return out
 
@@ -83,6 +84,7 @@ def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
         ]
         if len(coords) < 2:
             continue
+        speed = track_speed(track)
         features.append(
             {
                 "type": "Feature",
@@ -91,6 +93,9 @@ def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
                     "track_id": track.track_id,
                     "class_name": track.class_name,
                     "num_points": len(coords),
+                    "mean_speed_kmh": (
+                        round(speed.mean_speed_kmh, 1) if speed is not None else None
+                    ),
                 },
             }
         )

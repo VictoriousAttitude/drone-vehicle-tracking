@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from pyproj import Geod
 
@@ -37,6 +38,43 @@ def net_displacement_m(points: Sequence[GeoPoint]) -> float:
         return 0.0
     first, last = points[0], points[-1]
     return float(_GEOD.inv(first.longitude, first.latitude, last.longitude, last.latitude)[2])
+
+
+@dataclass(frozen=True, slots=True)
+class TrackSpeed:
+    """Average speed of one track: along-path distance over elapsed SRT time."""
+
+    duration_s: float
+    distance_m: float
+    mean_speed_mps: float
+
+    @property
+    def mean_speed_kmh(self) -> float:
+        """Mean speed in kilometres per hour."""
+        return self.mean_speed_mps * 3.6
+
+
+def track_speed(track: Track) -> TrackSpeed | None:
+    """Mean speed over a track's geo-located, time-stamped points.
+
+    Along-path geodesic distance divided by the elapsed time between the first and
+    last usable point (timestamps come from the per-frame DJI SRT). Returns
+    ``None`` when fewer than two points carry both a geo coordinate and a
+    timestamp, or when the elapsed time is not positive. At very low displacement
+    the path distance -- hence the speed -- is inflated by GNSS/pixel jitter, so a
+    near-stationary track reads a small nonzero speed rather than exactly zero.
+    """
+    timed: list[tuple[datetime, GeoPoint]] = []
+    for point in track.points:
+        if point.geo is not None and point.timestamp is not None:
+            timed.append((point.timestamp, point.geo))
+    if len(timed) < 2:
+        return None
+    duration = (timed[-1][0] - timed[0][0]).total_seconds()
+    if duration <= 0:
+        return None
+    distance = path_length_m([geo for _, geo in timed])
+    return TrackSpeed(duration_s=duration, distance_m=distance, mean_speed_mps=distance / duration)
 
 
 @dataclass(frozen=True, slots=True)

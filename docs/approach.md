@@ -45,9 +45,14 @@ Esri satellite base layer (toggle via the layer control). Each vehicle is one
 polyline; tracks are classified by net displacement (`pyproj` geodesic):
 - **Moving** (displacement >= `moving_min_displacement_m`, default 3 m): solid
   coloured path with green start / red end markers and a popup carrying track id,
-  class, net displacement and path length.
+  class, net displacement, path length and **mean speed** (km/h).
 - **Stationary** (parked cars whose track is only GNSS/pixel jitter): faint grey
   dashed line, no markers.
+
+Mean speed is along-path geodesic distance over the elapsed SRT time
+(`metrics.track_speed`) and is also written to the GeoJSON `mean_speed_kmh`
+property. At low displacement it absorbs GNSS/pixel jitter, so it is meaningful
+for moving traffic and only indicative for near-stationary tracks.
 
 This satisfies both the "moving cars" framing and the "paths of all detected
 cars" deliverable without discarding any track.

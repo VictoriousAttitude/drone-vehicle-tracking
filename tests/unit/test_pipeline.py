@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from drone_vehicle_tracking import pipeline
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
@@ -63,6 +64,8 @@ def test_georeference_uses_each_points_own_frame() -> None:
     (out,) = georeference_tracks([track], telemetry, FakeProjector())
     assert out.points[0].geo == GeoPoint(latitude=48.0 + 20.0, longitude=25.0 + 10.0)
     assert out.points[1].geo == GeoPoint(latitude=49.0, longitude=26.0)
+    # The frame's telemetry timestamp is attached alongside the geo coordinate.
+    assert out.points[0].timestamp == datetime(2024, 1, 1)
 
 
 def test_georeference_leaves_geo_none_when_telemetry_missing() -> None:
@@ -73,6 +76,7 @@ def test_georeference_leaves_geo_none_when_telemetry_missing() -> None:
     )
     (out,) = georeference_tracks([track], {}, FakeProjector())
     assert out.points[0].geo is None
+    assert out.points[0].timestamp is None
 
 
 def test_tracks_to_geojson_structure_and_axis_order() -> None:
@@ -91,6 +95,26 @@ def test_tracks_to_geojson_structure_and_axis_order() -> None:
     assert feature["geometry"]["coordinates"] == [[25.2, 48.1], [25.4, 48.3]]
     assert feature["properties"]["track_id"] == 3
     assert feature["properties"]["class_name"] == "truck"
+    # No timestamps on these points, so speed is not computable.
+    assert feature["properties"]["mean_speed_kmh"] is None
+
+
+def test_tracks_to_geojson_includes_mean_speed_when_timed() -> None:
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=5,
+        class_name="car",
+        points=[
+            TrackPoint(1, (0.0, 0.0), GeoPoint(latitude=48.0, longitude=25.0), t0),
+            TrackPoint(
+                2, (0.0, 0.0), GeoPoint(latitude=48.001, longitude=25.0), t0.replace(second=10)
+            ),
+        ],
+    )
+    fc = tracks_to_geojson([track])
+    speed = fc["features"][0]["properties"]["mean_speed_kmh"]  # type: ignore[index]
+    assert isinstance(speed, float)
+    assert speed == pytest.approx(40.0, abs=1.0)  # ~111 m in 10 s -> ~40 km/h
 
 
 def test_tracks_to_geojson_omits_tracks_with_fewer_than_two_geo_points() -> None:

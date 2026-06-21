@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import pytest
 
 from drone_vehicle_tracking.geo.metrics import (
@@ -6,6 +8,7 @@ from drone_vehicle_tracking.geo.metrics import (
     path_length_m,
     reprojection_scatter_m,
     track_geo_points,
+    track_speed,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track, TrackPoint
 
@@ -83,6 +86,43 @@ def test_reprojection_scatter_identical_points_is_zero() -> None:
     assert stats.count == 5
     assert stats.rms_m == pytest.approx(0.0, abs=1e-6)
     assert stats.max_m == pytest.approx(0.0, abs=1e-6)
+
+
+def test_track_speed_mean_distance_over_time() -> None:
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), t0),
+            TrackPoint(1, (0.0, 0.0), geo=None),  # no geo -> skipped
+            TrackPoint(2, (0.0, 0.0), GeoPoint(48.001, 25.0), t0 + timedelta(seconds=10)),
+        ],
+    )
+    speed = track_speed(track)
+    assert speed is not None
+    assert speed.duration_s == 10.0
+    assert speed.distance_m == pytest.approx(111.0, abs=1.0)  # ~111 m
+    assert speed.mean_speed_mps == pytest.approx(11.1, abs=0.1)
+    assert speed.mean_speed_kmh == pytest.approx(speed.mean_speed_mps * 3.6)
+
+
+def test_track_speed_none_without_timestamps() -> None:
+    track = _track_with_geo([(48.0, 25.0), (48.001, 25.0)])  # geo but no timestamps
+    assert track_speed(track) is None
+
+
+def test_track_speed_none_when_duration_not_positive() -> None:
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), t0),
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.001, 25.0), t0),  # same timestamp
+        ],
+    )
+    assert track_speed(track) is None
 
 
 def test_reprojection_scatter_known_spread() -> None:

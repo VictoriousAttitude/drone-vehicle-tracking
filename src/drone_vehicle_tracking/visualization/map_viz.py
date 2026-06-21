@@ -16,6 +16,7 @@ from drone_vehicle_tracking.geo.metrics import (
     net_displacement_m,
     path_length_m,
     track_geo_points,
+    track_speed,
 )
 from drone_vehicle_tracking.telemetry.models import GeoPoint, Track
 
@@ -83,11 +84,14 @@ def render_map(
         else:
             color = _STATIONARY_COLOR
 
+        speed = track_speed(track)
+        speed_html = f"mean speed: {speed.mean_speed_kmh:.1f} km/h<br>" if speed is not None else ""
         latlon = [(p.latitude, p.longitude) for p in points]
         popup = folium.Popup(
             f"<b>track {track.track_id}</b> ({track.class_name})<br>"
             f"net displacement: {displacement:.1f} m<br>"
             f"path length: {length:.1f} m<br>"
+            f"{speed_html}"
             f"points: {len(points)}",
             max_width=250,
         )
