@@ -36,3 +36,11 @@ io:
 visualization:
   map_html: map.html
   moving_min_displacement_m: 3.0   # below this net displacement a track is treated as parked
+
+export:
+  # Cursor-on-Target (CoT) output for TAK clients/servers, written with `dvt --cot`.
+  cot_type: a-u-G            # MIL-STD-2525 CoT type: atom / unknown affiliation / Ground
+  cot_stale_seconds: 60      # how long each emitted CoT event stays valid
+  # Self-reported horizontal accuracy (CoT `ce`), also surfaced in the GeoJSON and
+  # map. GNSS-bound without RTK — see the error budget in docs/approach.md.
+  position_error_m: 3.0

@@ -15,7 +15,8 @@ telemetry embedded in the DJI SRT file.
    drone's WGS84 position. Implemented per point with that point's own frame pose.
 5. **Smoothing** — centred moving average over each track's WGS84 coordinates to
    suppress GNSS/pixel jitter (see *Smoothing* below).
-6. **Visualization** — folium/Leaflet map + optional annotated video.
+6. **Visualization & export** — folium/Leaflet map, GeoJSON, optional annotated
+   video, and optional Cursor-on-Target (CoT) XML for TAK (see *Export* below).
 
 ## Detection model
 COCO-pretrained YOLO is trained on ground-level imagery and does not generalise
@@ -80,7 +81,8 @@ Esri satellite base layer (toggle via the layer control). Each vehicle is one
 polyline; tracks are classified by net displacement (`pyproj` geodesic):
 - **Moving** (displacement >= `moving_min_displacement_m`, default 3 m): solid
   coloured path with green start / red end markers and a popup carrying track id,
-  class, net displacement, path length and **mean speed** (km/h).
+  class, net displacement, path length, **mean speed** (km/h) and the
+  self-reported position accuracy (see *Export* below).
 - **Stationary** (parked cars whose track is only GNSS/pixel jitter): faint grey
   dashed line, no markers.
 
@@ -93,6 +95,29 @@ tracks.
 
 This satisfies both the "moving cars" framing and the "paths of all detected
 cars" deliverable without discarding any track.
+
+## Export (CoT / TAK)
+Beyond the map and GeoJSON, tracks export to **Cursor-on-Target** (`export/cot.py`,
+written with `dvt --cot tracks.cot`) — the XML event format ingested by TAK
+clients and servers (ATAK/WinTAK), so the output feeds a common operating picture
+directly. Each track becomes one CoT `<event>` at its last known position: a
+`<point>` (lat/lon), a `<track>` carrying course (last-segment forward azimuth)
+and speed, a `<contact>` callsign and a `<remarks>` line with class and mean
+confidence. Type defaults to `a-u-G` (MIL-STD-2525 atom / unknown affiliation /
+Ground), since a detector cannot establish friend-or-foe.
+
+**Self-reported accuracy** rides in the standard CoT `ce` (circular error, metres)
+field and is also written to the GeoJSON `position_error_m` property and the map
+popup, so every consumer sees the position's stated uncertainty. The figure
+(`export.position_error_m`, default 3 m) is the GNSS-bound absolute accuracy from
+the error budget below — honest by construction, since the geometry is sub-metre
+but the platform GNSS is not. `hae` and `le` are emitted as the CoT "unknown"
+sentinel because ground elevation is not modelled under the flat-ground projection.
+
+The MISB analogue for moving-target tracks is **ST 0903 (VMTI)**, which is binary
+KLV multiplexed into an ST 0601 video stream — a heavier, video-coupled artefact
+(needs a KLV codec and a mux step). CoT is the practical, immediately-ingestible
+format; VMTI is the natural next step if a MISB-compliant video feed is required.
 
 ## Accuracy
 Accuracy is validated without ground-control points or RTK — none are needed to

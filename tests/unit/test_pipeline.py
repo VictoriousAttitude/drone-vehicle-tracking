@@ -140,6 +140,21 @@ def test_tracks_to_geojson_structure_and_axis_order() -> None:
     assert feature["properties"]["mean_speed_kmh"] is None
     # No confidence on these points either.
     assert feature["properties"]["mean_confidence"] is None
+    # Self-reported accuracy is unset when not supplied.
+    assert feature["properties"]["position_error_m"] is None
+
+
+def test_tracks_to_geojson_records_position_error_when_given() -> None:
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(1, (0.0, 0.0), GeoPoint(latitude=48.0, longitude=25.0)),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(latitude=48.1, longitude=25.0)),
+        ],
+    )
+    fc = tracks_to_geojson([track], position_error_m=2.5)
+    assert fc["features"][0]["properties"]["position_error_m"] == 2.5  # type: ignore[index]
 
 
 def test_tracks_to_geojson_includes_mean_speed_when_timed() -> None:
@@ -278,7 +293,36 @@ def test_run_end_to_end_with_injected_components(tmp_path, make_srt) -> None:
     assert len(tracks) == 1
     geojson = json.loads((out_dir / "tracks.geojson").read_text())
     assert len(geojson["features"]) == 1
+    # Self-reported accuracy defaults to 3.0 m (no export section in the test config).
+    assert geojson["features"][0]["properties"]["position_error_m"] == 3.0
     assert (out_dir / "map.html").exists()
+
+
+def test_run_writes_cot_when_path_given(tmp_path, make_srt) -> None:
+    from xml.etree.ElementTree import fromstring
+
+    srt = make_srt([(48.0, 25.0), (48.010, 25.0)])  # ~1.1 km north -> moving
+    out_dir = tmp_path / "out"
+    cfg = _write_config(tmp_path, out_dir)
+    cot = tmp_path / "tracks.cot"
+    frames = [(i, np.zeros((4, 4, 3), dtype=np.uint8)) for i in (1, 2)]
+
+    run(
+        "ignored.mp4",
+        srt,
+        cfg,
+        detector=_FakeDetector(),
+        tracker=_FakeTracker((1, 2)),
+        projector=FakeProjector(),
+        frames=frames,
+        cot_path=cot,
+    )
+
+    root = fromstring(cot.read_text())  # parses -> well-formed XML
+    (event,) = root.findall("event")
+    assert event.get("version") == "2.0"
+    assert event.get("uid") == "dvt-vehicle-1"
+    assert event.find("point").get("ce") == "3.0"  # default self-reported accuracy
 
 
 class _CenterBoxDetector:
@@ -464,8 +508,9 @@ def test_cli_main_invokes_run(monkeypatch, capsys) -> None:
 
     captured: dict[str, object] = {}
 
-    def fake_run(video: str, srt: str, config: str) -> list[Track]:
+    def fake_run(video: str, srt: str, config: str, *, cot_path: str | None = None) -> list[Track]:
         captured["args"] = (video, srt, config)
+        captured["cot_path"] = cot_path
         return [Track(1, "car", []), Track(2, "car", [])]
 
     monkeypatch.setattr(pipeline, "run", fake_run)
@@ -475,6 +520,7 @@ def test_cli_main_invokes_run(monkeypatch, capsys) -> None:
     cli.main()
 
     assert captured["args"] == ("v.mp4", "v.srt", "c.yaml")
+    assert captured["cot_path"] is None
     assert "2 geo-referenced vehicle tracks" in capsys.readouterr().out
 
 
@@ -504,7 +550,7 @@ def test_cli_main_overlay_renders_annotated_video(monkeypatch, capsys) -> None:
     tracks = [Track(1, "car", [])]
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(pipeline, "run", lambda video, srt, config: tracks)
+    monkeypatch.setattr(pipeline, "run", lambda video, srt, config, cot_path=None: tracks)
 
     def fake_render(video: str, trks: list[Track], output: str) -> None:
         captured["args"] = (video, trks, output)
@@ -518,3 +564,22 @@ def test_cli_main_overlay_renders_annotated_video(monkeypatch, capsys) -> None:
 
     assert captured["args"] == ("v.mp4", tracks, "out.mp4")
     assert "Wrote annotated video: out.mp4" in capsys.readouterr().out
+
+
+def test_cli_main_cot_passes_path_to_run(monkeypatch, capsys) -> None:
+    import drone_vehicle_tracking.cli as cli
+
+    captured: dict[str, object] = {}
+
+    def fake_run(video: str, srt: str, config: str, *, cot_path: str | None = None) -> list[Track]:
+        captured["cot_path"] = cot_path
+        return [Track(1, "car", [])]
+
+    monkeypatch.setattr(pipeline, "run", fake_run)
+    monkeypatch.setattr(
+        "sys.argv", ["dvt", "--video", "v.mp4", "--srt", "v.srt", "--cot", "out.cot"]
+    )
+    cli.main()
+
+    assert captured["cot_path"] == "out.cot"
+    assert "Wrote CoT events: out.cot" in capsys.readouterr().out

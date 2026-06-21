@@ -56,11 +56,13 @@ def render_map(
     tracks: Sequence[Track],
     output_html: str | Path,
     moving_min_displacement_m: float = 3.0,
+    position_error_m: float | None = None,
 ) -> None:
     """Write an interactive HTML map with one polyline per geo-located track.
 
     Raises ``ValueError`` if no track carries at least two geo-located points,
-    since there is then nothing to plot.
+    since there is then nothing to plot. ``position_error_m``, when given, is
+    shown in each popup as the self-reported horizontal accuracy.
     """
     import folium
 
@@ -89,6 +91,11 @@ def render_map(
         speed_html = f"mean speed: {speed.mean_speed_kmh:.1f} km/h<br>" if speed is not None else ""
         confidence = track_mean_confidence(track)
         conf_html = f"mean confidence: {confidence:.2f}<br>" if confidence is not None else ""
+        accuracy_html = (
+            f"position accuracy: &plusmn;{position_error_m:.1f} m<br>"
+            if position_error_m is not None
+            else ""
+        )
         latlon = [(p.latitude, p.longitude) for p in points]
         popup = folium.Popup(
             f"<b>track {track.track_id}</b> ({track.class_name})<br>"
@@ -96,6 +103,7 @@ def render_map(
             f"path length: {length:.1f} m<br>"
             f"{speed_html}"
             f"{conf_html}"
+            f"{accuracy_html}"
             f"points: {len(points)}",
             max_width=250,
         )

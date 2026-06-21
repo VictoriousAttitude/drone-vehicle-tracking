@@ -74,11 +74,15 @@ def georeference_tracks(
     return out
 
 
-def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
+def tracks_to_geojson(
+    tracks: list[Track], position_error_m: float | None = None
+) -> dict[str, object]:
     """Serialise geo-referenced tracks to a GeoJSON ``FeatureCollection``.
 
     Each track becomes a ``LineString`` of ``[lon, lat]`` vertices (GeoJSON axis
     order). Tracks with fewer than two geo-located points are omitted.
+    ``position_error_m`` is recorded on every feature as the self-reported
+    horizontal accuracy (metres); ``None`` leaves it unset.
     """
     features: list[dict[str, object]] = []
     for track in tracks:
@@ -103,6 +107,7 @@ def tracks_to_geojson(tracks: list[Track]) -> dict[str, object]:
                         round(speed.mean_speed_kmh, 1) if speed is not None else None
                     ),
                     "mean_confidence": (round(confidence, 3) if confidence is not None else None),
+                    "position_error_m": position_error_m,
                 },
             }
         )
@@ -144,11 +149,13 @@ def run(
     tracker: Tracker | None = None,
     projector: Projector | None = None,
     frames: Iterable[tuple[int, npt.NDArray[np.uint8]]] | None = None,
+    cot_path: str | Path | None = None,
 ) -> list[Track]:
     """Run detect -> track -> geo-reference for one flight and write outputs.
 
     Returns the geo-referenced tracks and writes ``tracks.geojson`` (and, when
     any point is geo-located, ``map.html``) into the configured output directory.
+    When ``cot_path`` is given, also writes a Cursor-on-Target XML file for TAK.
 
     The ``detector``, ``tracker``, ``projector`` and ``frames`` arguments default
     to the production implementations (lazily importing the heavy CV stack) but
@@ -175,10 +182,27 @@ def run(
 
     output_dir = Path(config.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "tracks.geojson").write_text(json.dumps(tracks_to_geojson(tracks), indent=2))
+    geojson = tracks_to_geojson(tracks, config.position_error_m)
+    (output_dir / "tracks.geojson").write_text(json.dumps(geojson, indent=2))
 
     if any(point.geo is not None for track in tracks for point in track.points):
         from drone_vehicle_tracking.visualization.map_viz import render_map
 
-        render_map(tracks, output_dir / config.map_html, config.moving_min_displacement_m)
+        render_map(
+            tracks,
+            output_dir / config.map_html,
+            config.moving_min_displacement_m,
+            config.position_error_m,
+        )
+
+    if cot_path is not None:
+        from drone_vehicle_tracking.export.cot import write_cot
+
+        write_cot(
+            tracks,
+            cot_path,
+            cot_type=config.cot_type,
+            stale_seconds=config.cot_stale_seconds,
+            position_error_m=config.position_error_m,
+        )
     return tracks

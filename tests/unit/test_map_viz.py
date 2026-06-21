@@ -48,6 +48,13 @@ def test_render_map_writes_html(tmp_path) -> None:
     assert "mean confidence" in html
 
 
+def test_render_map_shows_position_accuracy_when_given(tmp_path) -> None:
+    moving = _track(1, [(48.0, 25.0), (48.001, 25.0), (48.002, 25.0)])
+    out = tmp_path / "map.html"
+    render_map([moving], out, position_error_m=2.5)
+    assert "position accuracy" in out.read_text()
+
+
 def test_render_map_skips_tracks_without_geo(tmp_path) -> None:
     no_geo = Track(
         track_id=1,

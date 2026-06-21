@@ -63,7 +63,7 @@ dvt --video data/flight.MP4 --srt data/flight.SRT --config configs/default.yaml
 ```
 
 Writes `outputs/tracks.geojson` (per-vehicle WGS84 `LineString` paths, each with
-`mean_speed_kmh` and `mean_confidence` properties) and `outputs/map.html`, an interactive folium/Leaflet
+`mean_speed_kmh`, `mean_confidence` and `position_error_m` properties) and `outputs/map.html`, an interactive folium/Leaflet
 map (OSM + satellite layers) with one polyline per vehicle. Moving cars are drawn
 as solid coloured paths with start/end markers and popups (displacement, path
 length, mean speed); near-stationary (parked) tracks are faint and dashed. Both
@@ -74,6 +74,15 @@ IDs onto a copy of the source video for visual QA:
 
 ```bash
 dvt --video data/flight.MP4 --srt data/flight.SRT --overlay outputs/annotated.mp4
+```
+
+Add `--cot outputs/tracks.cot` to also export the tracks as **Cursor-on-Target**
+(CoT) XML for TAK (ATAK/WinTAK): one `<event>` per vehicle at its last known
+position, with course/speed, callsign and the self-reported horizontal accuracy
+in the standard `ce` field. See [`docs/approach.md`](docs/approach.md#export-cot--tak).
+
+```bash
+dvt --video data/flight.MP4 --srt data/flight.SRT --cot outputs/tracks.cot
 ```
 
 ## Accuracy
@@ -110,6 +119,7 @@ src/drone_vehicle_tracking/
   tracking/    # ByteTrack wrapper
   geo/         # camera model, GSD, nadir pixel->WGS84 projection
   visualization/  # folium map + annotated video
+  export/      # Cursor-on-Target (CoT) XML for TAK
   pipeline.py  # orchestration
   cli.py       # entrypoint
 tests/         # unit (pure logic) + integration (needs real data)

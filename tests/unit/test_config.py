@@ -18,3 +18,6 @@ def test_load_default_config() -> None:
     assert config.moving_min_displacement_m > 0.0
     assert config.smoothing_window >= 1
     assert config.min_track_confidence >= 0.0
+    assert config.cot_type == "a-u-G"
+    assert config.cot_stale_seconds > 0
+    assert config.position_error_m > 0.0

@@ -21,6 +21,10 @@ def main() -> None:
         "--overlay",
         help="Also write an annotated video (boxes + track IDs) to this path.",
     )
+    parser.add_argument(
+        "--cot",
+        help="Also write Cursor-on-Target (CoT) XML events for TAK to this path.",
+    )
     args = parser.parse_args()
 
     if args.benchmark:
@@ -31,8 +35,10 @@ def main() -> None:
 
     from drone_vehicle_tracking.pipeline import run
 
-    tracks = run(args.video, args.srt, args.config)
+    tracks = run(args.video, args.srt, args.config, cot_path=args.cot)
     print(f"Done: {len(tracks)} geo-referenced vehicle tracks.")
+    if args.cot:
+        print(f"Wrote CoT events: {args.cot}")
 
     if args.overlay:
         from drone_vehicle_tracking.visualization.video_overlay import render_overlay
