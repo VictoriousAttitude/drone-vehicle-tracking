@@ -153,6 +153,19 @@ def test_enu_to_geo_distance_matches_geodesic() -> None:
     assert dist == pytest.approx(math.hypot(east, north), rel=1e-3)
 
 
+def test_enu_to_geo_axes_point_the_right_way() -> None:
+    # Pin the sign of both axes (a distance-only check cannot): +north must raise
+    # latitude and +east must raise longitude. The off-axis component is only the
+    # small grid-north vs true-north convergence (this works in the UTM grid frame).
+    base = enu_to_geo(0.0, 0.0, 48.0, 25.0)
+    north = enu_to_geo(0.0, 50.0, 48.0, 25.0)
+    east = enu_to_geo(50.0, 0.0, 48.0, 25.0)
+    assert north.latitude > base.latitude
+    assert east.longitude > base.longitude
+    assert abs(north.longitude - base.longitude) < 1e-4  # convergence only
+    assert abs(east.latitude - base.latitude) < 1e-4
+
+
 def test_projector_center_pixel_returns_drone_position() -> None:
     tele = _tele(lat=48.267013, lon=25.914562)
     point = NadirProjector(CAM).pixel_to_geo((CX, CY), tele)

@@ -124,6 +124,23 @@ mypy
 pytest -m "not integration"
 ```
 
+### Testing strategy
+
+The geometry core is verified with hand-derived expected values, an independent
+nadir oracle, property-based tests (Hypothesis) and a geodesic cross-check. The
+end-to-end run is pinned by a known-answer test: a detection at the image centre
+under a nadir gimbal must geo-reference to the drone's own position. The emitted
+`tracks.geojson` is validated against an RFC 7946-shaped JSON Schema so a
+structural regression fails a test rather than a downstream consumer.
+
+The pure geo core is also exercised with mutation testing (the surviving mutants
+are equivalent — docstrings, type-only casts, immutability flags and boundary
+cases that coincide at the tested coordinates):
+
+```bash
+mutmut run && mutmut results
+```
+
 ## Data & privacy
 
 Input video/telemetry are **not** committed (see `.gitignore`). Only a tiny

@@ -30,6 +30,16 @@ def test_centred_average_smooths_interior_and_anchors_endpoints() -> None:
     assert all(p.geo.latitude == 0.0 for p in out.points)  # constant axis untouched
 
 
+def test_last_endpoint_is_anchored_even_when_its_neighbour_differs() -> None:
+    # Right-end anchoring: the final fix must survive unchanged even when its
+    # neighbour differs sharply, guarding the symmetric window shrink at the end.
+    track = _geo_track([0.0, 0.0, 0.0, 6.0])
+    out = smooth_track(track, 3)
+    lons = [p.geo.longitude for p in out.points]
+    assert lons[-1] == pytest.approx(6.0)  # anchored, not pulled toward its neighbour
+    assert lons[0] == pytest.approx(0.0)
+
+
 def test_smoothing_shortens_a_jittery_path() -> None:
     jittery = _geo_track([0.0, 0.0010, -0.0010, 0.0010, -0.0010, 0.0])
     smoothed = smooth_track(jittery, 3)

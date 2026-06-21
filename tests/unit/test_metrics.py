@@ -107,6 +107,40 @@ def test_track_speed_mean_distance_over_time() -> None:
     assert speed.mean_speed_kmh == pytest.approx(speed.mean_speed_mps * 3.6)
 
 
+def test_track_speed_spans_first_to_last_timed_point() -> None:
+    # Three timed points: the duration must span first->last, not first->second,
+    # so a mid-track timestamp cannot shorten the measured timespan.
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), t0),
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.001, 25.0), t0 + timedelta(seconds=1)),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(48.002, 25.0), t0 + timedelta(seconds=20)),
+        ],
+    )
+    speed = track_speed(track)
+    assert speed is not None
+    assert speed.duration_s == pytest.approx(20.0)  # first->last, not the 1 s to point 2
+
+
+def test_track_speed_accepts_subsecond_duration() -> None:
+    # A positive sub-second timespan must still yield a speed (guards the > 0 boundary).
+    t0 = datetime(2024, 1, 1, 12, 0, 0)
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(0, (0.0, 0.0), GeoPoint(48.0, 25.0), t0),
+            TrackPoint(1, (0.0, 0.0), GeoPoint(48.0001, 25.0), t0 + timedelta(milliseconds=500)),
+        ],
+    )
+    speed = track_speed(track)
+    assert speed is not None
+    assert speed.duration_s == pytest.approx(0.5)
+
+
 def test_track_speed_none_without_timestamps() -> None:
     track = _track_with_geo([(48.0, 25.0), (48.001, 25.0)])  # geo but no timestamps
     assert track_speed(track) is None

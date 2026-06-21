@@ -30,6 +30,8 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
+    "jsonschema>=4.0",
+    "mutmut>=2.4,<3",
     "ruff>=0.5",
     "mypy>=1.10",
     "pre-commit>=3.7",
@@ -78,3 +80,12 @@ markers = [
 [tool.coverage.run]
 source = ["drone_vehicle_tracking"]
 branch = true
+
+# Mutation testing of the pure geo core (the geometry that the accuracy claim
+# rests on). Run locally / on demand, not in the standard CI gate:
+#   mutmut run && mutmut results
+# The runner is scoped to the pure-logic unit tests so the pass needs no [cv]
+# extra and stays fast (no per-mutant YOLO/decoder spin-up).
+[tool.mutmut]
+paths_to_mutate = "src/drone_vehicle_tracking/geo/"
+runner = ".venv/bin/python -m pytest -x -q tests/unit/test_projection.py tests/unit/test_camera.py tests/unit/test_metrics.py tests/unit/test_error_budget.py tests/unit/test_smoothing.py"

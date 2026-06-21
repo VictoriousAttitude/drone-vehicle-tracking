@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+import jsonschema
 import numpy as np
 import pytest
 
@@ -16,6 +17,46 @@ from drone_vehicle_tracking.telemetry.models import (
     Track,
     TrackPoint,
 )
+from drone_vehicle_tracking.tracking.tracker import bbox_bottom_center
+
+# RFC 7946-shaped schema for the GeoJSON this pipeline emits: a FeatureCollection
+# of LineString features, each coordinate a [lon, lat] pair. Locks the output
+# contract so a structural regression fails a test instead of a consumer.
+_GEOJSON_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "required": ["type", "features"],
+    "properties": {
+        "type": {"const": "FeatureCollection"},
+        "features": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["type", "geometry", "properties"],
+                "properties": {
+                    "type": {"const": "Feature"},
+                    "geometry": {
+                        "type": "object",
+                        "required": ["type", "coordinates"],
+                        "properties": {
+                            "type": {"const": "LineString"},
+                            "coordinates": {
+                                "type": "array",
+                                "minItems": 2,
+                                "items": {
+                                    "type": "array",
+                                    "minItems": 2,
+                                    "maxItems": 2,
+                                    "items": {"type": "number"},
+                                },
+                            },
+                        },
+                    },
+                    "properties": {"type": "object"},
+                },
+            },
+        },
+    },
+}
 
 
 class FakeProjector:
@@ -238,6 +279,78 @@ def test_run_end_to_end_with_injected_components(tmp_path, make_srt) -> None:
     geojson = json.loads((out_dir / "tracks.geojson").read_text())
     assert len(geojson["features"]) == 1
     assert (out_dir / "map.html").exists()
+
+
+class _CenterBoxDetector:
+    """Emits one box per frame whose bottom-centre is the image centre (960, 540)
+    for the 1920x1080 mavic_3t_wide model."""
+
+    def detect(self, frame_index: int, image: np.ndarray) -> list[Detection]:
+        return [Detection(frame_index, (955.0, 530.0, 965.0, 540.0), 0.9, "car")]
+
+
+class _PassThroughTracker:
+    """Turns each frame's first detection into a track point at the detection's
+    bbox bottom-centre, so the real detector->projector chain is exercised."""
+
+    def __init__(self) -> None:
+        self._points: list[TrackPoint] = []
+
+    def update(self, frame_index: int, detections: Sequence[Detection]) -> None:
+        det = detections[0]
+        self._points.append(
+            TrackPoint(frame_index=frame_index, pixel_xy=bbox_bottom_center(det.bbox_xyxy))
+        )
+
+    def finalize(self) -> list[Track]:
+        return [Track(track_id=1, class_name="car", points=self._points)]
+
+
+def test_run_geo_references_center_detection_to_drone_position(tmp_path, make_srt) -> None:
+    """End-to-end with the REAL projector and a known answer: a detection at the
+    image centre under a nadir gimbal must geo-reference to the drone's own
+    position, so the output coordinate is verifiable, not just well-formed."""
+    lat0, lon0 = 48.267013, 25.914562
+    lat1, lon1 = 48.268013, 25.914562  # ~111 m north -> a moving track
+    srt = make_srt([(lat0, lon0), (lat1, lon1)])
+    out_dir = tmp_path / "out"
+    cfg = _write_config(tmp_path, out_dir)
+    frames = [(i, np.zeros((4, 4, 3), dtype=np.uint8)) for i in (1, 2)]
+
+    # projector is NOT injected -> run() builds the real NadirProjector from config.
+    run(
+        "ignored.mp4",
+        srt,
+        cfg,
+        detector=_CenterBoxDetector(),
+        tracker=_PassThroughTracker(),
+        frames=frames,
+    )
+
+    geojson = json.loads((out_dir / "tracks.geojson").read_text())
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    assert coords[0][0] == pytest.approx(lon0, abs=1e-6)
+    assert coords[0][1] == pytest.approx(lat0, abs=1e-6)
+    assert coords[1][0] == pytest.approx(lon1, abs=1e-6)
+    assert coords[1][1] == pytest.approx(lat1, abs=1e-6)
+    # The on-disk artefact is valid GeoJSON, not only well-shaped in memory.
+    jsonschema.validate(instance=geojson, schema=_GEOJSON_SCHEMA)
+
+
+def test_tracks_to_geojson_validates_against_geojson_schema() -> None:
+    track = Track(
+        track_id=1,
+        class_name="car",
+        points=[
+            TrackPoint(1, (0.0, 0.0), GeoPoint(latitude=48.1, longitude=25.2)),
+            TrackPoint(2, (0.0, 0.0), GeoPoint(latitude=48.3, longitude=25.4)),
+        ],
+    )
+    jsonschema.validate(instance=tracks_to_geojson([track]), schema=_GEOJSON_SCHEMA)
+
+
+def test_empty_feature_collection_is_valid_geojson() -> None:
+    jsonschema.validate(instance=tracks_to_geojson([]), schema=_GEOJSON_SCHEMA)
 
 
 class _SpikeTracker:
