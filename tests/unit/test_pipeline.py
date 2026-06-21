@@ -225,3 +225,22 @@ def test_cli_main_invokes_run(monkeypatch, capsys) -> None:
 
     assert captured["args"] == ("v.mp4", "v.srt", "c.yaml")
     assert "2 geo-referenced vehicle tracks" in capsys.readouterr().out
+
+
+def test_cli_main_benchmark_prints_report(monkeypatch, capsys) -> None:
+    import drone_vehicle_tracking.cli as cli
+    import drone_vehicle_tracking.perf as perf
+    from drone_vehicle_tracking.perf import StageTimings
+
+    def fake_benchmark(video: str, srt: str, config: str) -> StageTimings:
+        return StageTimings(
+            frames=6, wall_s=2.0, decode_s=0.1, detect_s=1.5, track_s=0.3, project_s=0.05
+        )
+
+    monkeypatch.setattr(perf, "benchmark", fake_benchmark)
+    monkeypatch.setattr("sys.argv", ["dvt", "--video", "v.mp4", "--srt", "v.srt", "--benchmark"])
+    cli.main()
+
+    out = capsys.readouterr().out
+    assert "throughput" in out
+    assert "3.00 fps" in out

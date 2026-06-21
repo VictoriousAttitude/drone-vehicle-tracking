@@ -85,7 +85,29 @@ would require RTK or ground-control points — whereas *relative* path accuracy 
 finer, limited only by the geometry above. This is the factual basis for the
 "up to ~1 m" target being a relative, not absolute, figure.
 
+## Performance
+Throughput is measured per stage rather than as a single opaque number, because
+the per-stage split is what drives the cost/quality trade-off. `perf.py` wraps the
+four swappable stages (decode, detect, track, project) in timing decorators and
+runs the *real* pipeline through them — the dependency-injection seams added for
+testing double as zero-overhead measurement points, so no benchmarking branch
+leaks into `pipeline.run`. Run it on any clip:
+
+```bash
+dvt --video flight.MP4 --srt flight.SRT --benchmark
+```
+
+This prints frames processed, total wall time, throughput (fps) and the
+decode/detect/track/project breakdown. Detection dominates wall time by a wide
+margin; decode is secondary and tracking and geo-referencing are comparatively
+negligible. The practical lever is `io.frame_stride`: processing every *n*-th
+frame scales throughput roughly linearly while sampling vehicle positions more
+coarsely — adequate while the inter-frame motion stays well below the track-
+association gate. Absolute fps is hardware- and clip-dependent, so it is left to
+the local run rather than quoted here.
+
 ## Results
 _Map screenshot — run locally; outputs are gitignored to keep source imagery and
 location out of the public repo. The accuracy figures above are reproducible from
-any DJI SRT via `geo/error_budget.py` and `geo/metrics.reprojection_scatter_m`._
+any DJI SRT via `geo/error_budget.py` and `geo/metrics.reprojection_scatter_m`;
+the performance breakdown via `dvt --benchmark`._

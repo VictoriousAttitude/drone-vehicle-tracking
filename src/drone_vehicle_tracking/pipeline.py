@@ -16,12 +16,31 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 
-from drone_vehicle_tracking.config import load_config
+from drone_vehicle_tracking.config import PipelineConfig, load_config
 from drone_vehicle_tracking.geo.camera import CAMERA_REGISTRY
 from drone_vehicle_tracking.geo.projection import NadirProjector
 from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
 from drone_vehicle_tracking.telemetry.srt_parser import parse_srt
+
+
+def _build_projector(config: PipelineConfig) -> Projector:
+    """Construct the default nadir projector from config."""
+    return NadirProjector(CAMERA_REGISTRY[config.camera_model], config.altitude_source)
+
+
+def _build_detector(config: PipelineConfig) -> Detector:
+    """Construct the default YOLO detector (lazily importing the CV stack)."""
+    from drone_vehicle_tracking.detection.detector import YoloVehicleDetector
+
+    return YoloVehicleDetector(config.model, config.conf_threshold, config.classes, config.imgsz)
+
+
+def _build_tracker(config: PipelineConfig) -> Tracker:
+    """Construct the default ByteTrack tracker (lazily importing the CV stack)."""
+    from drone_vehicle_tracking.tracking.tracker import ByteTrackVehicleTracker
+
+    return ByteTrackVehicleTracker(config.min_track_length)
 
 
 def georeference_tracks(
@@ -127,17 +146,11 @@ def run(
     telemetry_by_index = {frame.frame_index: frame for frame in parse_srt(srt_path)}
 
     if projector is None:
-        projector = NadirProjector(CAMERA_REGISTRY[config.camera_model], config.altitude_source)
+        projector = _build_projector(config)
     if detector is None:
-        from drone_vehicle_tracking.detection.detector import YoloVehicleDetector
-
-        detector = YoloVehicleDetector(
-            config.model, config.conf_threshold, config.classes, config.imgsz
-        )
+        detector = _build_detector(config)
     if tracker is None:
-        from drone_vehicle_tracking.tracking.tracker import ByteTrackVehicleTracker
-
-        tracker = ByteTrackVehicleTracker(config.min_track_length)
+        tracker = _build_tracker(config)
     if frames is None:
         frames = iter_video_frames(video_path, config.frame_stride)
 

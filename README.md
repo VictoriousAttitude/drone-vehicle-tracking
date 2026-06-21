@@ -76,6 +76,20 @@ RTK) — so sub-metre *absolute* is GNSS-bound and not attainable from telemetry
 alone, while *relative* path accuracy is finer. Full budget in
 [`docs/approach.md`](docs/approach.md#accuracy).
 
+## Performance
+
+Per-stage timing is built in — the same dependency-injection seams used for
+testing double as measurement points, so benchmarking runs the real pipeline with
+no extra branches in it:
+
+```bash
+dvt --video flight.MP4 --srt flight.SRT --benchmark
+```
+
+Prints frames, total wall time, throughput (fps) and a decode/detect/track/project
+breakdown. Detection dominates wall time, so `io.frame_stride` is the main lever to
+trade frames for throughput. See [`docs/approach.md`](docs/approach.md#performance).
+
 ## Project layout
 
 ```

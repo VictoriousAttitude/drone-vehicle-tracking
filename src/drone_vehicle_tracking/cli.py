@@ -12,7 +12,18 @@ def main() -> None:
     parser.add_argument("--video", required=True, help="Path to the drone video file.")
     parser.add_argument("--srt", required=True, help="Path to the matching DJI SRT file.")
     parser.add_argument("--config", default="configs/default.yaml", help="Pipeline config.")
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the pipeline and print a per-stage timing report instead of a track count.",
+    )
     args = parser.parse_args()
+
+    if args.benchmark:
+        from drone_vehicle_tracking.perf import benchmark
+
+        print(benchmark(args.video, args.srt, args.config).format_report())
+        return
 
     from drone_vehicle_tracking.pipeline import run
 

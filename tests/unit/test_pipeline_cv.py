@@ -15,6 +15,7 @@ pytest.importorskip("ultralytics")
 pytest.importorskip("supervision")
 pytest.importorskip("trackers")
 
+from drone_vehicle_tracking.perf import benchmark  # noqa: E402
 from drone_vehicle_tracking.pipeline import iter_video_frames, run  # noqa: E402
 
 
@@ -65,3 +66,17 @@ def test_run_full_stack_on_synthetic_video(tmp_path, make_video, make_srt) -> No
 
     assert isinstance(tracks, list)
     assert (out_dir / "tracks.geojson").exists()
+
+
+def test_benchmark_reports_timing_on_synthetic_video(tmp_path, make_video, make_srt) -> None:
+    video = make_video(num_frames=6)
+    srt = make_srt([(48.0 + i * 0.0005, 25.0) for i in range(6)])
+    cfg = _write_cv_config(tmp_path, tmp_path / "out")
+
+    # No injected components: this drives the real detector, tracker and decode.
+    timings = benchmark(video, srt, cfg)
+
+    assert timings.frames > 0
+    assert timings.wall_s > 0
+    assert timings.fps > 0
+    assert "fps" in timings.format_report()
