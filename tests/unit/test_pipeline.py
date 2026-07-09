@@ -1,5 +1,6 @@
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import pytest
 from drone_vehicle_tracking import pipeline
 from drone_vehicle_tracking.geo.camera import MAVIC_3T_WIDE
 from drone_vehicle_tracking.geo.error_budget import AccuracyModel
-from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
+from drone_vehicle_tracking.interfaces import Detector, Projector, Stabilizer, Tracker
 from drone_vehicle_tracking.pipeline import georeference_tracks, run, tracks_to_geojson
 from drone_vehicle_tracking.telemetry.models import (
     Detection,
@@ -551,6 +552,49 @@ def test_run_skips_map_when_no_geo(tmp_path, make_srt) -> None:
     assert all(p.geo is None for t in tracks for p in t.points)
     assert (out_dir / "tracks.geojson").exists()
     assert not (out_dir / "map.html").exists()
+
+
+class _FakeStabilizer:
+    """Records observed frames and shifts frame 1's telemetry north by 1 degree."""
+
+    def __init__(self) -> None:
+        self.observed: list[int] = []
+
+    def observe(self, frame_index: int, image: np.ndarray) -> None:
+        self.observed.append(frame_index)
+
+    def corrected(self, telemetry_by_index) -> dict[int, TelemetryFrame]:
+        first = telemetry_by_index[1]
+        return {1: replace(first, latitude=first.latitude + 1.0)}
+
+
+def test_run_uses_stabilizer_corrected_telemetry(tmp_path, make_srt) -> None:
+    """An injected stabilizer sees every frame, and its corrected telemetry is
+    what reaches the projector (FakeProjector encodes telemetry into the geo)."""
+    assert isinstance(_FakeStabilizer(), Stabilizer)
+    srt = make_srt([(48.0, 25.0), (48.01, 25.0)])
+    out_dir = tmp_path / "out"
+    cfg = _write_config(tmp_path, out_dir)
+    frames = [(1, np.zeros((4, 4, 3), dtype=np.uint8)), (2, np.zeros((4, 4, 3), dtype=np.uint8))]
+    stabilizer = _FakeStabilizer()
+
+    run(
+        "ignored.mp4",
+        srt,
+        cfg,
+        detector=_FakeDetector(),
+        tracker=_FakeTracker((1, 2)),
+        projector=FakeProjector(),
+        frames=frames,
+        stabilizer=stabilizer,
+    )
+
+    assert stabilizer.observed == [1, 2]
+    geojson = json.loads((out_dir / "tracks.geojson").read_text())
+    coords = geojson["features"][0]["geometry"]["coordinates"]
+    # pixel_xy=(5, 9): frame 1 uses the corrected latitude 49.0 -> 58.0,
+    # frame 2 keeps its raw telemetry 48.01 -> 57.01.
+    assert coords == [[30.0, 58.0], [30.0, 57.01]]
 
 
 def test_cli_main_invokes_run(monkeypatch, capsys) -> None:

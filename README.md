@@ -30,20 +30,25 @@ OpenStreetMap and Esri satellite base layers:
 
 ```
 SRT telemetry ─┐
-               ├─> detect (YOLO) ─> track (ByteTrack) ─> geo-reference ─> smooth ─> map / video
+               ├─> stabilize telemetry ─> detect (YOLO) ─> track (ByteTrack) ─> geo-reference ─> smooth ─> map / video
 video frames  ─┘
 ```
 
 1. **Telemetry** — parse DJI SRT into per-frame drone pose (lat, lon, altitude, gimbal).
-2. **Detection** — YOLO restricted to vehicle classes. COCO-pretrained weights
+2. **Stabilization** (optional) — consecutive frames are registered (optical
+   flow + RANSAC; moving vehicles rejected as outliers) and the drone's visual
+   ego-motion is fused with the GNSS telemetry through a complementary filter,
+   stripping high-frequency position/yaw jitter while staying GNSS-anchored
+   (`processing.stabilize`).
+3. **Detection** — YOLO restricted to vehicle classes. COCO-pretrained weights
    fail on top-down imagery, so VisDrone-finetuned weights are used (see below).
-3. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories;
+4. **Tracking** — ByteTrack assigns stable IDs -> per-vehicle pixel trajectories;
    weak tracks are dropped by length and mean detection confidence.
-4. **Geo-referencing** — per-frame nadir projection maps each pixel to WGS84
+5. **Geo-referencing** — per-frame nadir projection maps each pixel to WGS84
    using the drone position, altitude and gimbal yaw.
-5. **Smoothing** — centred moving average over each track's WGS84 coordinates
+6. **Smoothing** — centred moving average over each track's WGS84 coordinates
    suppresses GNSS/pixel jitter (`processing.smoothing_window`, endpoints kept).
-6. **Visualization** — interactive folium/Leaflet map + optional annotated video.
+7. **Visualization** — interactive folium/Leaflet map + optional annotated video.
 
 See [`docs/approach.md`](docs/approach.md) for the method, assumptions and accuracy notes.
 
@@ -134,7 +139,8 @@ src/drone_vehicle_tracking/
   telemetry/   # DJI SRT parsing + shared domain models
   detection/   # YOLO vehicle detector
   tracking/    # ByteTrack wrapper
-  geo/         # camera model, GSD, nadir pixel->WGS84 projection
+  geo/         # camera model, GSD, nadir pixel->WGS84 projection, ego-motion fusion
+  stabilization/  # frame registration (optical flow) feeding the fusion
   visualization/  # folium map + annotated video
   export/      # Cursor-on-Target (CoT) XML for TAK
   pipeline.py  # orchestration

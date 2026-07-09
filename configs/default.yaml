@@ -28,6 +28,13 @@ processing:
   # Drop tracks whose mean detection confidence is below this (a quality gate
   # beyond min_track_length). 0 disables it. Tracks with no confidence are kept.
   min_track_confidence: 0.3
+  # Visual ego-motion stabilization: register consecutive frames (needs the [cv]
+  # extra) and blend the measured motion with the GNSS/yaw telemetry through a
+  # complementary filter, suppressing high-frequency position jitter while the
+  # absolute datum stays GNSS-anchored. See docs/approach.md.
+  stabilize: true
+  stabilization_window: 61   # residual moving-average window in processed frames
+                             # (~2 s at 30 fps); <= 1 disables the blend
 
 io:
   frame_stride: 1            # process every Nth frame

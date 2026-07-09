@@ -7,15 +7,18 @@ telemetry embedded in the DJI SRT file.
 
 ## Pipeline
 1. **Telemetry parse** — DJI SRT -> per-frame drone pose (lat, lon, alt, gimbal).
-2. **Detection** — YOLO, vehicle classes only (see *Detection model* below).
-3. **Tracking** — ByteTrack -> stable IDs and pixel trajectories; weak tracks are
+2. **Telemetry stabilization** (optional) — visual ego-motion measured by
+   registering consecutive frames is fused with the GNSS telemetry to remove
+   high-frequency position/yaw jitter (see *Telemetry stabilization* below).
+3. **Detection** — YOLO, vehicle classes only (see *Detection model* below).
+4. **Tracking** — ByteTrack -> stable IDs and pixel trajectories; weak tracks are
    then dropped by length and mean detection confidence (see *Track quality*).
-4. **Geo-referencing** — per-frame projection: pixel -> ground offset (ray cast,
+5. **Geo-referencing** — per-frame projection: pixel -> ground offset (ray cast,
    reduces to GSD * pixel_delta at nadir) -> rotate by gimbal yaw -> add to the
    drone's WGS84 position. Implemented per point with that point's own frame pose.
-5. **Smoothing** — centred moving average over each track's WGS84 coordinates to
+6. **Smoothing** — centred moving average over each track's WGS84 coordinates to
    suppress GNSS/pixel jitter (see *Smoothing* below).
-6. **Visualization & export** — folium/Leaflet map, GeoJSON, optional annotated
+7. **Visualization & export** — folium/Leaflet map, GeoJSON, optional annotated
    video, and optional Cursor-on-Target (CoT) XML for TAK (see *Export* below).
 
 ## Detection model
@@ -58,6 +61,47 @@ Heavier track-quality work — interpolating across detection gaps and re-ID acr
 full occlusions — is deliberately left out: both add real complexity (and, for
 re-ID, an appearance model) for marginal gain on near-nadir survey footage where
 vehicles are rarely occluded. They are the natural next step if needed.
+
+## Telemetry stabilization (visual ego-motion fusion)
+Without RTK the drone's GNSS fix jitters by metres from frame to frame, and that
+jitter passes straight through the projector into every geo-referenced track —
+it is the dominant error term in the budget below. Consecutive nadir frames
+overlap almost completely, so the drone's *relative* motion between frames can
+be measured from the imagery itself at sub-pixel precision. The two signals are
+complementary: telemetry is absolute but noisy at high frequency; visual
+ego-motion is precise at high frequency but drifts when integrated. The
+stabilizer (`stabilization/`, enabled by `processing.stabilize`, needs the `[cv]`
+extra) exploits both:
+
+1. **Registration** — Shi–Tomasi corners tracked with pyramidal Lucas–Kanade
+   optical flow, then a similarity transform fitted with RANSAC; moving vehicles
+   are a small minority of the tracked corners and are rejected as outliers.
+2. **Pose recovery** — sample pixels are projected to the ground through the
+   *same* projector used for geo-referencing, for both frames of a pair, and the
+   rigid alignment of the two point sets is solved in closed form (2D Kabsch).
+   That alignment *is* the inter-frame pose change (ΔE, ΔN, Δyaw). Only the
+   current frame's **angles and altitude** are consumed — not its GNSS fix — so
+   the increment is immune to GNSS noise, and reusing the projector guarantees
+   the fusion shares its coordinate conventions exactly (pinned by oracle tests
+   that recover a known synthetic pose to numerical precision).
+3. **Complementary fusion** — the increments are dead-reckoned and blended with
+   telemetry as `fused = dead_reckoned + MA(telemetry − dead_reckoned)`, where
+   `MA` is the same endpoint-anchored centred moving average used for track
+   smoothing (window `processing.stabilization_window`). The absolute datum
+   stays GNSS-bound (segment endpoints keep raw telemetry) while the
+   high-frequency jitter inside the window is replaced by the visual
+   measurement. Yaw is fused the same way (residual unwrapped across ±180°);
+   altitude is not fused, as the barometric altimeter is already smooth
+   compared with GNSS horizontal noise.
+
+Registration failures (feature-poor frames, decode gaps) split the flight into
+independent segments and the affected frames keep their raw telemetry, so the
+stage degrades to a no-op rather than corrupting poses. The field check is the
+same GCP-free metric used for accuracy validation: the reprojection scatter of
+*stationary* vehicles shrinks when stabilization is on, with the gain growing
+with the window length. The residual floor is set by detection-box noise and
+parallax on the vehicle body (the box's bottom centre shifts as the viewing
+angle changes), which no telemetry correction can remove.
 
 ## Smoothing
 Geo-referenced tracks carry two independent noise sources — the drone's GNSS
@@ -157,7 +201,10 @@ and is the same magnitude regardless of altitude. **Conclusion:** sub-metre
 *absolute* accuracy is not attainable from telemetry alone — it is GNSS-bound, and
 would require RTK or ground-control points — whereas *relative* path accuracy is
 finer, limited only by the geometry above. This is the factual basis for the
-"up to ~1 m" target being a relative, not absolute, figure.
+"up to ~1 m" target being a relative, not absolute, figure. The telemetry
+stabilization stage attacks exactly the dominant GNSS term: it replaces the
+high-frequency component of the jitter with visual ego-motion while the absolute
+datum stays GNSS-bound.
 
 This budget is not only an analytical table: `geo/error_budget.AccuracyModel`
 evaluates the same terms **per point at runtime** (using that frame's altitude and

@@ -28,6 +28,8 @@ class PipelineConfig:
     moving_min_displacement_m: float
     smoothing_window: int
     min_track_confidence: float
+    stabilize: bool
+    stabilization_window: int
     cot_type: str
     cot_stale_seconds: int
     position_error_m: float
@@ -64,6 +66,8 @@ def load_config(path: str | Path) -> PipelineConfig:
         moving_min_displacement_m=float(visualization["moving_min_displacement_m"]),
         smoothing_window=int(processing.get("smoothing_window", 1)),
         min_track_confidence=float(processing.get("min_track_confidence", 0.0)),
+        stabilize=bool(processing.get("stabilize", False)),
+        stabilization_window=int(processing.get("stabilization_window", 61)),
         cot_type=str(export.get("cot_type", "a-u-G")),
         cot_stale_seconds=int(export.get("cot_stale_seconds", 60)),
         position_error_m=float(export.get("position_error_m", 3.0)),

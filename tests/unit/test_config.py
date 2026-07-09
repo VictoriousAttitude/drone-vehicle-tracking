@@ -25,3 +25,31 @@ def test_load_default_config() -> None:
     assert 0.0 < config.altitude_relative_error < 1.0
     assert 0.0 < config.focal_relative_error < 1.0
     assert config.yaw_error_deg > 0.0
+    assert config.stabilize is True
+    assert config.stabilization_window > 1
+
+
+def test_stabilization_defaults_off_without_processing_section(tmp_path: Path) -> None:
+    minimal = tmp_path / "minimal.yaml"
+    minimal.write_text(
+        "detection:\n"
+        "  model: unused.pt\n"
+        "  conf_threshold: 0.25\n"
+        "  imgsz: 1280\n"
+        "  classes: [car]\n"
+        "tracking:\n"
+        "  min_track_length: 1\n"
+        "camera:\n"
+        "  model: mavic_3t_wide\n"
+        "projection:\n"
+        "  altitude_source: rel_alt\n"
+        "io:\n"
+        "  frame_stride: 1\n"
+        "  output_dir: outputs\n"
+        "visualization:\n"
+        "  map_html: map.html\n"
+        "  moving_min_displacement_m: 3.0\n"
+    )
+    config = load_config(minimal)
+    assert config.stabilize is False
+    assert config.stabilization_window == 61

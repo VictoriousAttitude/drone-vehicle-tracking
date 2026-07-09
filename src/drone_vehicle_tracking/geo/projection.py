@@ -116,6 +116,16 @@ def nadir_gsd_offset(
     return east, north
 
 
+def utm_epsg(lat: float, lon: float) -> int:
+    """EPSG code of the WGS84/UTM zone containing ``(lat, lon)``.
+
+    All local metric computations (``enu_to_geo`` and the ego-motion fusion)
+    share this zone selection so they operate in the same grid frame.
+    """
+    zone = int((lon + 180.0) // 6.0) + 1
+    return (32600 if lat >= 0 else 32700) + zone
+
+
 def enu_to_geo(east_m: float, north_m: float, lat0: float, lon0: float) -> GeoPoint:
     """Convert a local ENU offset (metres) around (lat0, lon0) to WGS84.
 
@@ -123,8 +133,7 @@ def enu_to_geo(east_m: float, north_m: float, lat0: float, lon0: float) -> GeoPo
     """
     from pyproj import Transformer
 
-    zone = int((lon0 + 180.0) // 6.0) + 1
-    epsg = (32600 if lat0 >= 0 else 32700) + zone
+    epsg = utm_epsg(lat0, lon0)
     to_utm = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
     to_wgs = Transformer.from_crs(f"EPSG:{epsg}", "EPSG:4326", always_xy=True)
     e0, n0 = to_utm.transform(lon0, lat0)

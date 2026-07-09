@@ -8,7 +8,7 @@ Protocols.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Protocol, runtime_checkable
 
 import numpy as np
@@ -31,6 +31,17 @@ class Tracker(Protocol):
     def update(self, frame_index: int, detections: Sequence[Detection]) -> None: ...
 
     def finalize(self) -> list[Track]: ...
+
+
+@runtime_checkable
+class Stabilizer(Protocol):
+    """Refines per-frame telemetry from visual ego-motion between frames."""
+
+    def observe(self, frame_index: int, image: npt.NDArray[np.uint8]) -> None: ...
+
+    def corrected(
+        self, telemetry_by_index: Mapping[int, TelemetryFrame]
+    ) -> dict[int, TelemetryFrame]: ...
 
 
 @runtime_checkable

@@ -19,7 +19,7 @@ from drone_vehicle_tracking.perf import benchmark  # noqa: E402
 from drone_vehicle_tracking.pipeline import iter_video_frames, run  # noqa: E402
 
 
-def _write_cv_config(tmp_path: Path, output_dir: Path) -> Path:
+def _write_cv_config(tmp_path: Path, output_dir: Path, processing: str = "") -> Path:
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
         "detection:\n"
@@ -33,6 +33,7 @@ def _write_cv_config(tmp_path: Path, output_dir: Path) -> Path:
         "  model: mavic_3t_wide\n"
         "projection:\n"
         "  altitude_source: rel_alt\n"
+        f"{processing}"
         "io:\n"
         "  frame_stride: 1\n"
         f"  output_dir: {output_dir}\n"
@@ -62,6 +63,28 @@ def test_run_full_stack_on_synthetic_video(tmp_path, make_video, make_srt) -> No
     cfg = _write_cv_config(tmp_path, out_dir)
 
     # No injected components: this drives the real detector, tracker and decode.
+    tracks = run(video, srt, cfg)
+
+    assert isinstance(tracks, list)
+    assert (out_dir / "tracks.geojson").exists()
+
+
+def test_run_builds_default_stabilizer_when_enabled(tmp_path, make_video, make_srt) -> None:
+    """Covers the config-driven stabilizer construction and the observe loop.
+
+    The synthetic video (one moving square) is feature-poor, so registration
+    returns None per pair and the fusion degrades to a no-op instead of
+    inventing corrections -- the graceful-failure path, end to end.
+    """
+    video = make_video(num_frames=6)
+    srt = make_srt([(48.0 + i * 0.0005, 25.0) for i in range(6)])
+    out_dir = tmp_path / "out"
+    cfg = _write_cv_config(
+        tmp_path,
+        out_dir,
+        processing="processing:\n  stabilize: true\n  stabilization_window: 3\n",
+    )
+
     tracks = run(video, srt, cfg)
 
     assert isinstance(tracks, list)

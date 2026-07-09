@@ -88,4 +88,4 @@ branch = true
 # extra and stays fast (no per-mutant YOLO/decoder spin-up).
 [tool.mutmut]
 paths_to_mutate = "src/drone_vehicle_tracking/geo/"
-runner = ".venv/bin/python -m pytest -x -q tests/unit/test_projection.py tests/unit/test_camera.py tests/unit/test_metrics.py tests/unit/test_error_budget.py tests/unit/test_smoothing.py"
+runner = ".venv/bin/python -m pytest -x -q tests/unit/test_projection.py tests/unit/test_camera.py tests/unit/test_metrics.py tests/unit/test_error_budget.py tests/unit/test_smoothing.py tests/unit/test_fusion.py"

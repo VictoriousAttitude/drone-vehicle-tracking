@@ -22,7 +22,7 @@ from drone_vehicle_tracking.geo.error_budget import AccuracyModel
 from drone_vehicle_tracking.geo.metrics import track_position_error_m, track_speed
 from drone_vehicle_tracking.geo.projection import NadirProjector
 from drone_vehicle_tracking.geo.smoothing import smooth_tracks
-from drone_vehicle_tracking.interfaces import Detector, Projector, Tracker
+from drone_vehicle_tracking.interfaces import Detector, Projector, Stabilizer, Tracker
 from drone_vehicle_tracking.telemetry.models import TelemetryFrame, Track
 from drone_vehicle_tracking.telemetry.srt_parser import parse_srt
 from drone_vehicle_tracking.tracking.quality import (
@@ -48,6 +48,17 @@ def _build_tracker(config: PipelineConfig) -> Tracker:
     from drone_vehicle_tracking.tracking.tracker import ByteTrackVehicleTracker
 
     return ByteTrackVehicleTracker(config.min_track_length)
+
+
+def _build_stabilizer(config: PipelineConfig) -> Stabilizer:
+    """Construct the default visual-telemetry stabilizer (lazily importing OpenCV)."""
+    from drone_vehicle_tracking.stabilization.stabilizer import TelemetryStabilizer
+
+    return TelemetryStabilizer(
+        CAMERA_REGISTRY[config.camera_model],
+        config.altitude_source,
+        config.stabilization_window,
+    )
 
 
 def _build_accuracy_model(config: PipelineConfig) -> AccuracyModel:
@@ -171,6 +182,7 @@ def run(
     tracker: Tracker | None = None,
     projector: Projector | None = None,
     frames: Iterable[tuple[int, npt.NDArray[np.uint8]]] | None = None,
+    stabilizer: Stabilizer | None = None,
     cot_path: str | Path | None = None,
 ) -> list[Track]:
     """Run detect -> track -> geo-reference for one flight and write outputs.
@@ -179,9 +191,11 @@ def run(
     any point is geo-located, ``map.html``) into the configured output directory.
     When ``cot_path`` is given, also writes a Cursor-on-Target XML file for TAK.
 
-    The ``detector``, ``tracker``, ``projector`` and ``frames`` arguments default
-    to the production implementations (lazily importing the heavy CV stack) but
-    can be injected, which keeps the orchestration testable without that stack.
+    The ``detector``, ``tracker``, ``projector``, ``frames`` and ``stabilizer``
+    arguments default to the production implementations (lazily importing the
+    heavy CV stack) but can be injected, which keeps the orchestration testable
+    without that stack. The default stabilizer is only built when the config
+    enables ``processing.stabilize``; an injected one is always used.
     """
     config = load_config(config_path)
     telemetry_by_index = {frame.frame_index: frame for frame in parse_srt(srt_path)}
@@ -194,9 +208,16 @@ def run(
         tracker = _build_tracker(config)
     if frames is None:
         frames = iter_video_frames(video_path, config.frame_stride)
+    if stabilizer is None and config.stabilize:
+        stabilizer = _build_stabilizer(config)
 
     for frame_index, image in frames:
+        if stabilizer is not None:
+            stabilizer.observe(frame_index, image)
         tracker.update(frame_index, detector.detect(frame_index, image))
+
+    if stabilizer is not None:
+        telemetry_by_index = {**telemetry_by_index, **stabilizer.corrected(telemetry_by_index)}
 
     kept = filter_tracks_by_confidence(tracker.finalize(), config.min_track_confidence)
     tracks = georeference_tracks(kept, telemetry_by_index, projector, _build_accuracy_model(config))
